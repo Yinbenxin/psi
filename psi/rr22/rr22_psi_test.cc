@@ -59,7 +59,7 @@ GenerateTestData(size_t item_size, double p = 0.5) {
   }
   return std::make_tuple(inputs_a, inputs_b, indices);
 }
-
+ 
 struct TestParams {
   uint64_t items_num;
 
