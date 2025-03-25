@@ -28,6 +28,10 @@ load("@yacl//bazel:repositories.bzl", "yacl_deps")
 
 yacl_deps()
 
+load("@gaia_net//bazel:gaia_net_deps.bzl", "gaia_net_deps")
+
+gaia_net_deps()
+
 load("@rules_python//python:repositories.bzl", "py_repositories")
 
 py_repositories()
@@ -42,7 +46,9 @@ rules_foreign_cc_dependencies(
     register_default_tools = False,
     register_preinstalled_tools = True,
 )
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
 
+bazel_features_deps()
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
 grpc_deps()
