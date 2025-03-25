@@ -52,10 +52,11 @@ def _yacl():
         http_archive,
         name = "yacl",
         urls = [
-            "https://github.com/secretflow/yacl/archive/refs/tags/0.4.5b5_nightly_20240913.tar.gz",
+            # "https://github.com/secretflow/yacl/archive/refs/tags/0.4.5b5_nightly_20240913.tar.gz",
+            "https://github.com/Yinbenxin/yacl/archive/5d9f849ec35431436d75e7dcdbd58581ebe51548.tar.gz"
         ],
-        strip_prefix = "yacl-0.4.5b5_nightly_20240913",
-        sha256 = "04b332246e3ccb57b5dd612353ed2e84f894e5537a3e854c020c8172793c07d6",
+        strip_prefix = "yacl-5d9f849ec35431436d75e7dcdbd58581ebe51548",
+        # sha256 = "04b332246e3ccb57b5dd612353ed2e84f894e5537a3e854c020c8172793c07d6",
     )
 
 def _bazel_platform():
