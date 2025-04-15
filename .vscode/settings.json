@@ -54,6 +54,24 @@
         "string": "cpp",
         "string_view": "cpp",
         "unordered_map": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "iostream": "cpp",
+        "ostream": "cpp",
+        "complex": "cpp",
+        "fstream": "cpp",
+        "list": "cpp",
+        "map": "cpp",
+        "source_location": "cpp",
+        "span": "cpp",
+        "typeindex": "cpp",
+        "unordered_set": "cpp",
+        "algorithm": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "regex": "cpp",
+        "valarray": "cpp",
+        "*.ipp": "cpp",
+        "*.inc": "cpp",
+        "dense_hash_map": "cpp"
     }
 }

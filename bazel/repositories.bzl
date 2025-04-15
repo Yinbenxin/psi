@@ -52,10 +52,10 @@ def _yacl():
         http_archive,
         name = "yacl",
         urls = [
-            "https://github.com/Yinbenxin/yacl/archive/refs/tags/gaia_1.5.tar.gz",
+            "https://github.com/Yinbenxin/yacl/archive/refs/tags/1.6.tar.gz",
         ],
-        strip_prefix = "yacl-gaia_1.5",
-        sha256 = "55e1ce3cb0938805d795e566b5dc066abb01bbd9ecc322a87a3bc72aada1a0fb",
+        strip_prefix = "yacl-1.6",
+        sha256 = "e03b332507bf0911b5bb1b3ad7e1ec71a6d3c224cc4246db37f01fea1dec69cc",
     )
 
 def _bazel_platform():
