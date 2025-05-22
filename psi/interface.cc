@@ -73,7 +73,7 @@ void AbstractPsiParty::Init() {
   assert(lctx_);
 
   // Test connection.
-  lctx_->ConnectToMesh();
+  // lctx_->ConnectToMesh();
 
   CheckPeerConfig();
 

@@ -72,6 +72,19 @@
         "valarray": "cpp",
         "*.ipp": "cpp",
         "*.inc": "cpp",
-        "dense_hash_map": "cpp"
+        "dense_hash_map": "cpp",
+        "barrier": "cpp",
+        "cfenv": "cpp",
+        "cinttypes": "cpp",
+        "codecvt": "cpp",
+        "csetjmp": "cpp",
+        "csignal": "cpp",
+        "latch": "cpp",
+        "numbers": "cpp",
+        "scoped_allocator": "cpp",
+        "semaphore": "cpp",
+        "shared_mutex": "cpp",
+        "strstream": "cpp",
+        "syncstream": "cpp"
     }
 }
