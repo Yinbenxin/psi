@@ -85,6 +85,7 @@
         "semaphore": "cpp",
         "shared_mutex": "cpp",
         "strstream": "cpp",
-        "syncstream": "cpp"
+        "syncstream": "cpp",
+        "*.tcc": "cpp"
     }
 }
