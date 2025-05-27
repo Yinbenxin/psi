@@ -75,7 +75,7 @@ void AbstractPsiParty::Init() {
   // Test connection.
   // lctx_->ConnectToMesh();
 
-  CheckPeerConfig();
+  // CheckPeerConfig();
 
   join_processor_ = JoinProcessor::Make(config_, GetTaskDir());
 

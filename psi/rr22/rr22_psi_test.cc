@@ -75,7 +75,7 @@ class Rr22PsiTest : public testing::TestWithParam<TestParams> {};
 TEST_P(Rr22PsiTest, CorrectTest) {
   auto params = GetParam();
 
-  auto lctxs = yacl::link::test::SetupWorld("ab", 2);
+  auto lctxs = yacl::link::test::SetupBrpcWorld("ab", 2);
 
   uint128_t seed = yacl::MakeUint128(0, 0);
   yacl::crypto::Prg<uint128_t> prng(seed);
