@@ -114,7 +114,14 @@ psi_cc_test(
         "@yacl//yacl/crypto/rand",
     ],
 )
-
+psi_cc_test(
+    name = "rr22_psi_test_new",
+    srcs = ["rr22_psi_test_new.cc"],
+    deps = [
+        ":rr22_psi",
+        "@yacl//yacl/crypto/rand",
+    ],
+)
 psi_cc_binary(
     name = "rr22_psi_benchmark",
     srcs = ["rr22_psi_benchmark.cc"],

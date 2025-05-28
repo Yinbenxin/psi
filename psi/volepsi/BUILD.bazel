@@ -1,0 +1,46 @@
+load("@yacl//bazel:yacl.bzl", "AES_COPT_FLAGS")
+load("//bazel:psi.bzl", "psi_cc_binary", "psi_cc_library", "psi_cc_test")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+package(default_visibility = ["//visibility:public"])
+
+psi_cc_library(
+    name = "vole_psi",
+    srcs = ["vole_psi.cc"],
+    hdrs = ["vole_psi.h"],
+    deps = [
+        "//psi/rr22:rr22_psi",
+        "@yacl//yacl/crypto/rand",
+    ],
+)
+
+psi_cc_test(
+    name = "vole_psi_test",
+    srcs = ["vole_psi_test.cc"],
+    deps = [
+        ":vole_psi",
+    ],
+)
+
+pybind_extension(
+    name = "basic",
+    srcs = ["libvolepsi.cc"],
+    deps = [
+        ":vole_psi",
+    ],
+)
+
+
+py_library(
+    name = "basic_lib",
+    data = [":basic"],
+    imports = ["."],
+)
+
+
+py_test(
+    name = "vole_test",
+    srcs = ["vole_test.py"],
+    deps = [
+        ":basic_lib"
+    ],
+)

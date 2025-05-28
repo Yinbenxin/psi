@@ -46,6 +46,9 @@ def psi_deps():
     _com_github_zeromq_libzmq()
     _com_github_log4cplus_log4cplus()
     _com_github_open_source_parsers_jsoncpp()
+    _com_github_pybind11_bazel()
+    _com_github_pybind11()
+
 
 def _yacl():
     maybe(
@@ -450,5 +453,30 @@ def _com_github_open_source_parsers_jsoncpp():
         type = ".tar.gz",
         urls = [
             "https://github.com/open-source-parsers/jsoncpp/archive/refs/tags/1.9.6.tar.gz",
+        ],
+    )
+
+
+
+def _com_github_pybind11_bazel():
+    maybe(
+        http_archive,
+        name = "pybind11_bazel",
+        sha256 = "dc4882b23a617575d0fd822aba88aa4a14133c3d428b5a8fb83d81d03444a475",
+        strip_prefix = "pybind11_bazel-8889d39b2b925b2a47519ae09402a96f00ccf2b4",
+        urls = [
+            "https://github.com/pybind/pybind11_bazel/archive/8889d39b2b925b2a47519ae09402a96f00ccf2b4.zip",
+        ],
+    )
+
+def _com_github_pybind11():
+    maybe(
+        http_archive,
+        name = "pybind11",
+        build_file = "@pybind11_bazel//:pybind11.BUILD",
+        sha256 = "e08cb87f4773da97fa7b5f035de8763abc656d87d5773e62f6da0587d1f0ec20",
+        strip_prefix = "pybind11-2.13.6",
+        urls = [
+            "https://github.com/pybind/pybind11/archive/refs/tags/v2.13.6.tar.gz",
         ],
     )
