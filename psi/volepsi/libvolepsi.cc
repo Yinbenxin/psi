@@ -8,12 +8,26 @@ namespace psi {
 
 PYBIND11_MODULE(libvolepsi, m) {
   py::class_<VolePsi>(m, "VolePsi")
-      .def(py::init<size_t>())
+      .def(py::init<size_t, std::string, std::string, std::string, size_t, size_t, std::string, size_t, bool, bool, bool, bool, std::string>(),
+           py::arg("role"),
+           py::arg("taskid"),
+           py::arg("party"),
+           py::arg("redis"),
+           py::arg("sysectbits") = 112,
+           py::arg("psi_type") = 1,
+           py::arg("log_dir") = ".",
+           py::arg("log_level") = 2,
+           py::arg("log_with_console") = true,
+           py::arg("net_log_switch") = false,
+           py::arg("server_output") = true,
+           py::arg("use_redis") = true,
+           py::arg("chl_type") = "mem")
       .def("Run", &VolePsi::Run,
            py::arg("role"),
-           py::arg("items_num"),
-           py::arg("fast_mode"),
-           py::arg("malicious"));
+           py::arg("input"),
+           py::arg("fast_mode") = true,
+           py::arg("malicious") = false,
+           py::arg("broadcast_result") = true);
 }
 
 }  // namespace psi

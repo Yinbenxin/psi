@@ -17,14 +17,62 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstdint>
+#include <future>
+#include <mutex>
+#include <random>
+#include <tuple>
+
+#include "spdlog/spdlog.h"
+#include "yacl/crypto/rand/rand.h"
+#include "yacl/crypto/tools/prg.h"
+#include "yacl/link/test_util.h"
+#include "yacl/link/context.h"
+#include "psi/rr22/rr22_psi.h"
+#include "psi/rr22/rr22_utils.h"
+#include "psi/utils/hash_bucket_cache.h"
 
 namespace psi {
 class VolePsi {
  public:
- explicit VolePsi(size_t role){role_ = role;};
+  VolePsi(size_t role, std::string taskid, std::string party, std::string redis, 
+         size_t sysectbits = 112, size_t psi_type = 1, std::string log_dir = ".", 
+         size_t log_level = 2, bool log_with_console = true, bool net_log_switch = false, 
+         bool server_output = true, bool use_redis = true, std::string chl_type = "mem") {
+    SPDLOG_INFO("role: {}, taskid: {}, party: {}, redis: {}, sysectbits: {}, psi_type: {}, log_dir: {}, log_level: {}, log_with_console: {}, net_log_switch: {}, server_output: {}, use_redis: {}, chl_type: {}",
+                role, taskid, party, redis, sysectbits, psi_type, log_dir, log_level, log_with_console, net_log_switch, server_output, use_redis, chl_type);
+    role_ = role;
+    taskid_ = taskid;
+    party_ = party;
+    redis_ = redis;
+    sysectbits_ = sysectbits;
+    psi_type_ = psi_type;
+    log_dir_ = log_dir;
+    log_level_ = log_level;
+    log_with_console_ = log_with_console;
+    net_log_switch_ = net_log_switch;
+    server_output_ = server_output;
+    use_redis_ = use_redis;
+    chl_type_ = chl_type;
+
+  }
+  
   ~VolePsi() = default;
-  void Run(size_t role, size_t items_num, bool fast_mode, bool malicious);
+  std::vector<uint128_t> Run(size_t role, const std::vector<uint128_t>& input, bool fast_mode, bool malicious, bool broadcast_result);
 private:
-size_t role_;
+  std::shared_ptr<yacl::link::Context> SetupGrpclinks();
+  size_t role_;
+  std::string taskid_;
+  std::string party_;
+  std::string redis_;
+  size_t sysectbits_ = 112;
+  size_t psi_type_ = 1;
+  std::string log_dir_ = ".";
+  size_t log_level_ = 2;
+  bool log_with_console_ = true;
+  bool net_log_switch_ = false;
+  bool server_output_ = true;
+  bool use_redis_ = true;
+  std::string chl_type_ = "mem";
 };
 }  // namespace psi

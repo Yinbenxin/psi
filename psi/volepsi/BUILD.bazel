@@ -1,6 +1,8 @@
 load("@yacl//bazel:yacl.bzl", "AES_COPT_FLAGS")
 load("//bazel:psi.bzl", "psi_cc_binary", "psi_cc_library", "psi_cc_test")
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+load("@rules_python//python:defs.bzl", "py_library", "py_test")
+
 package(default_visibility = ["//visibility:public"])
 
 psi_cc_library(
@@ -21,26 +23,31 @@ psi_cc_test(
     ],
 )
 
+
+
+
+
 pybind_extension(
-    name = "basic",
+    name = "libvolepsi",
     srcs = ["libvolepsi.cc"],
+    linkopts = select({
+        "@platforms//os:windows": ["/FORCE:UNRESOLVED"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":vole_psi",
     ],
 )
 
-
 py_library(
-    name = "basic_lib",
-    data = [":basic"],
+    name = "volepsi_lib",
+    srcs = ["__init__.py"],  # 添加一个空的__init__.py文件
+    data = [":libvolepsi.so"],  # 使用.so扩展名
     imports = ["."],
 )
-
 
 py_test(
     name = "vole_test",
     srcs = ["vole_test.py"],
-    deps = [
-        ":basic_lib"
-    ],
+    deps = [":volepsi_lib"],
 )

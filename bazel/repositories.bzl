@@ -58,7 +58,7 @@ def _yacl():
             "https://github.com/Yinbenxin/yacl/archive/refs/tags/2.0.tar.gz",
         ],
         strip_prefix = "yacl-2.0",
-        # sha256 = "382532b30e363a95f2657b85924e368fb6db670a0cc12fe7ebd13461a4e1e858",
+        sha256 = "043b53cbe55d8058967382945f8cc1d4b81fa494c49606f3d09782d2cdc9ddc1",
     )
 
 def _bazel_platform():
