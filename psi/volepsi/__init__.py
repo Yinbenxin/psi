@@ -21,7 +21,7 @@ class PSIParty:
         self.server_output = server_output
         self.use_redis = use_redis
         self.chl_type = chl_type # mem or grpc
-        self.vole_psi = VolePsi(self.role, self.taskid, self.party, self.redis, self.sysectbits, self.psi_type, self.log_dir, self.log_level, self.log_with_console, self.net_log_switch, self.server_output, self.use_redis, self.chl_type)
+        self.vole_psi = VolePsi(self.role, self.taskid, self.party, self.redis, self.sysectbits, self.psi_type, self.log_dir, self.log_level, self.log_with_console, self.net_log_switch, self.server_output, self.use_redis, self.chl_type, add_meta)
 
     def Run(self, role, input:List[int], fast_mode=True, malicious=False, broadcast_result=True):
         logging.info(f'do_psi parameters: {self.taskid}, {self.role}, {self.party}, {self.redis}')

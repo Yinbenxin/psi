@@ -8,7 +8,7 @@ namespace psi {
 
 PYBIND11_MODULE(libvolepsi, m) {
   py::class_<VolePsi>(m, "VolePsi")
-      .def(py::init<size_t, std::string, std::string, std::string, size_t, size_t, std::string, size_t, bool, bool, bool, bool, std::string>(),
+      .def(py::init<size_t, std::string, std::string, std::string, size_t, size_t, std::string, size_t, bool, bool, bool, bool, std::string, const std::map<std::string, std::string>&>(),
            py::arg("role"),
            py::arg("taskid"),
            py::arg("party"),
@@ -21,7 +21,8 @@ PYBIND11_MODULE(libvolepsi, m) {
            py::arg("net_log_switch") = false,
            py::arg("server_output") = true,
            py::arg("use_redis") = true,
-           py::arg("chl_type") = "mem")
+           py::arg("chl_type") = "mem",
+           py::arg("meta") = std::map<std::string, std::string>())
       .def("Run", &VolePsi::Run,
            py::arg("role"),
            py::arg("input"),

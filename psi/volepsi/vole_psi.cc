@@ -27,7 +27,7 @@ std::shared_ptr<yacl::link::Context> VolePsi::SetupGrpclinks() {
     ctx_desc.parties.emplace_back(id, host);
   }
   auto lctx = yacl::link::FactoryBrpc().CreateContext(ctx_desc, role_);
-  lctx->add_gaia_net(taskid_, chl_type_, party_, redis_);
+  lctx->add_gaia_net(taskid_, chl_type_, party_, redis_,connect_wait_time_, use_redis_, net_log_switch_, meta_);
   return lctx;
 };
 

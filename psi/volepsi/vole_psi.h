@@ -38,7 +38,8 @@ class VolePsi {
   VolePsi(size_t role, std::string taskid, std::string party, std::string redis, 
          size_t sysectbits = 112, size_t psi_type = 1, std::string log_dir = ".", 
          size_t log_level = 2, bool log_with_console = true, bool net_log_switch = false, 
-         bool server_output = true, bool use_redis = true, std::string chl_type = "mem") {
+         bool server_output = true, bool use_redis = true, std::string chl_type = "mem", const std::map<std::string, std::string> &meta = std::map<std::string, std::string>()) {
+    // 移除 meta 参数，因为 fmt 无法格式化 std::map
     SPDLOG_INFO("role: {}, taskid: {}, party: {}, redis: {}, sysectbits: {}, psi_type: {}, log_dir: {}, log_level: {}, log_with_console: {}, net_log_switch: {}, server_output: {}, use_redis: {}, chl_type: {}",
                 role, taskid, party, redis, sysectbits, psi_type, log_dir, log_level, log_with_console, net_log_switch, server_output, use_redis, chl_type);
     role_ = role;
@@ -54,7 +55,7 @@ class VolePsi {
     server_output_ = server_output;
     use_redis_ = use_redis;
     chl_type_ = chl_type;
-
+    meta_ = meta;
   }
   
   ~VolePsi() = default;
@@ -69,10 +70,12 @@ private:
   size_t psi_type_ = 1;
   std::string log_dir_ = ".";
   size_t log_level_ = 2;
+  size_t connect_wait_time_ =20000;
   bool log_with_console_ = true;
   bool net_log_switch_ = false;
   bool server_output_ = true;
   bool use_redis_ = true;
   std::string chl_type_ = "mem";
+  std::map<std::string, std::string> meta_ = std::map<std::string, std::string>();
 };
 }  // namespace psi
