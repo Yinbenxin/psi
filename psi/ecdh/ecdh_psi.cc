@@ -486,22 +486,6 @@ void RunEcdhPsi(const EcdhPsiOptions& options,
     SPDLOG_INFO("processed_item_cnt = {}", processed_item_cnt);
   }
 
-  std::future<void> f_mask_self = std::async([&] {
-    SPDLOG_INFO("ID {}: MaskSelf begin...", handler.Id());
-    handler.MaskSelf(batch_provider, processed_item_cnt);
-    SPDLOG_INFO("ID {}: MaskSelf finished.", handler.Id());
-  });
-  std::future<void> f_mask_peer = std::async([&] {
-    SPDLOG_INFO("ID {}: MaskPeer begin...", handler.Id());
-    handler.MaskPeer(peer_ec_point_store);
-    SPDLOG_INFO("ID {}: MaskPeer finished.", handler.Id());
-  });
-  std::future<void> f_recv_peer = std::async([&] {
-    SPDLOG_INFO("ID {}: RecvDualMaskedSelf begin...", handler.Id());
-    handler.RecvDualMaskedSelf(self_ec_point_store);
-    SPDLOG_INFO("ID {}: RecvDualMaskedSelf finished.", handler.Id());
-  });
-
   // Wait for end of logic flows or exceptions.
   // Note: exception_ptr is `shared_ptr` style, hence could be used to prolong
   // the lifetime of pointed exceptions.
@@ -510,21 +494,27 @@ void RunEcdhPsi(const EcdhPsiOptions& options,
   std::exception_ptr recv_peer_exptr = nullptr;
 
   try {
-    f_mask_self.get();
+    SPDLOG_INFO("ID {}: MaskSelf begin...", handler.Id());
+    handler.MaskSelf(batch_provider, processed_item_cnt);
+    SPDLOG_INFO("ID {}: MaskSelf finished.", handler.Id());
   } catch (const std::exception& e) {
     mask_self_exptr = std::current_exception();
     SPDLOG_ERROR("ID {}: Error in MaskSelf: {}", handler.Id(), e.what());
   }
 
   try {
-    f_mask_peer.get();
+    SPDLOG_INFO("ID {}: MaskPeer begin...", handler.Id());
+    handler.MaskPeer(peer_ec_point_store);
+    SPDLOG_INFO("ID {}: MaskPeer finished.", handler.Id());
   } catch (const std::exception& e) {
     mask_peer_exptr = std::current_exception();
     SPDLOG_ERROR("ID {}: Error in MaskPeer: {}", handler.Id(), e.what());
   }
 
   try {
-    f_recv_peer.get();
+    SPDLOG_INFO("ID {}: RecvDualMaskedSelf begin...", handler.Id());
+    handler.RecvDualMaskedSelf(self_ec_point_store);
+    SPDLOG_INFO("ID {}: RecvDualMaskedSelf finished.", handler.Id());
   } catch (const std::exception& e) {
     recv_peer_exptr = std::current_exception();
     SPDLOG_ERROR("ID {}: Error in RecvDualMaskedSelf: {}", handler.Id(),
