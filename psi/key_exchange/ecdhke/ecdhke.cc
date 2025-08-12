@@ -491,13 +491,14 @@ std::vector<std::string> RunEcdhKe(
   // |std::unordered_set| or |absl::flat_hash_set| drops significantly.
   // Besides, these hashset containers require more memory.
   // Here we choose the compact data structure and stable find costs.
-  std::vector<std::string> ret_items;
   std::vector<std::string> peer_results(peer_ec_point_store->content());
-  std::sort(peer_results.begin(), peer_results.end());
-
-  SPDLOG_INFO("RunEcdhKe Finish  peer_results.size() {}", peer_results.size());
-
-  return peer_results;
+  std::vector<std::string> hex_output;
+  hex_output.reserve(peer_results.size());
+  for (const auto& item : peer_results) {
+      hex_output.push_back(absl::BytesToHexString(item));
+  }
+  SPDLOG_INFO("RunEcdhKe Finish  results.size() {}", hex_output.size());
+  return hex_output;
 }
 
 }  // namespace psi::ecdh
