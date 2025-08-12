@@ -32,7 +32,7 @@
 #include "psi/cryptor/cryptor_selector.h"
 #include "psi/utils/batch_provider_impl.h"
 
-namespace psi::ecdh {
+namespace psi::ecdhke {
 
 constexpr int kLogBatchInterval = 10;
 
@@ -135,7 +135,7 @@ void EcdhPsiContext::MaskSelf(
     if (options_.ecdh_logger) {
       hashed_masked_items =
           options_.ecc_cryptor->SerializeEcPoints(hashed_points);
-      options_.ecdh_logger->Log(EcdhStage::MaskSelf,
+      options_.ecdh_logger->Log(ecdh::EcdhStage::MaskSelf,
                                 options_.ecc_cryptor->GetPrivateKey(),
                                 item_count, hashed_masked_items, masked_items);
     }
@@ -204,7 +204,7 @@ void EcdhPsiContext::MaskPeer(
       break;
     }
     if (options_.ecdh_logger) {
-      options_.ecdh_logger->Log(EcdhStage::MaskPeer,
+      options_.ecdh_logger->Log(ecdh::EcdhStage::MaskPeer,
                                 options_.ecc_cryptor->GetPrivateKey(),
                                 item_count, peer_items, dual_masked_peers);
     }

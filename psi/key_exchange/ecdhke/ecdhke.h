@@ -34,7 +34,7 @@
 #include "psi/utils/serializable.pb.h"
 
 
-namespace psi::ecdh {
+namespace psi::ecdhke {
 
 using FinishBatchHook = std::function<void(size_t)>;
 
@@ -78,7 +78,7 @@ struct EcdhPsiOptions {
   // Optional RecoveryManager to save checkpoints.
   std::shared_ptr<RecoveryManager> recovery_manager = nullptr;
 
-  std::shared_ptr<EcdhLogger> ecdh_logger = nullptr;
+  std::shared_ptr<ecdh::EcdhLogger> ecdh_logger = nullptr;
 };
 
 // batch handler for 2-party ecdh psi

@@ -29,7 +29,7 @@ struct TestParams {
   size_t target_rank;
   psi::CurveType curve_type = psi::CurveType::CURVE_25519;
 };
-namespace psi::ecdh {
+namespace psi::ecdhke {
 
 class EcdhPsiTest : public testing::TestWithParam<TestParams> {};
 
