@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "psi/ecdh/ecdh_psi.h"
+#include "psi/key_exchange/ecdhke/ecdhke.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <future>
 #include <memory>
@@ -193,29 +194,6 @@ void EcdhPsiContext::MaskPeer(
       }
     }
 
-    auto target_rank_str = [&, this]() {
-      return options_.target_rank == yacl::link::kAllRank
-                 ? "all"
-                 : std::to_string(options_.target_rank);
-    };
-
-    // Should send out the dual masked items to peer.
-    if (PeerCanTouchResults()) {
-      if (batch_count == 0) {
-        SPDLOG_INFO("SendDualMaskedItems to peer: {}, batch={}, begin...",
-                    target_rank_str(), batch_count);
-      }
-      const auto tag = fmt::format("ECDHPSI:Y^B^A:{}", batch_count);
-      // call non-block to avoid blocking each other with MaskSelf
-      SendDualMaskedBatchNonBlock(dual_masked_peers, batch_count, tag);
-      SPDLOG_INFO("SendDualMaskedItems to peer: {}, batch={}, end...",
-                  target_rank_str(), batch_count);
-      if (dual_masked_peers.empty()) {
-        SPDLOG_INFO(
-            "SendDualMaskedItems to peer: {}, batch_count={}, finished.",
-            target_rank_str(), batch_count);
-      }
-    }
 
     if (peer_items.empty()) {
       SPDLOG_INFO("MaskPeer:{} --finished, batch_count={}, peer_item_count={}",
@@ -236,51 +214,6 @@ void EcdhPsiContext::MaskPeer(
     if (batch_count % kLogBatchInterval == 0) {
       SPDLOG_INFO("MaskPeer:{}, batch_count={}, peer_item_count={}", Id(),
                   batch_count, item_count);
-    }
-  }
-}
-
-void EcdhPsiContext::RecvDualMaskedSelf(
-    const std::shared_ptr<IEcPointStore>& self_ec_point_store) {
-  if (!SelfCanTouchResults()) {
-    return;
-  }
-
-  size_t item_count = 0;
-  // Receive x^a^b.
-  size_t batch_count = 0;
-  while (true) {
-    // TODO: avoid mem copy
-    std::vector<std::string> masked_items;
-    const auto tag = fmt::format("ECDHPSI:X^A^B:{}", batch_count);
-    RecvDualMaskedBatch(&masked_items, batch_count, tag);
-    if (options_.ecdh_logger) {
-      options_.ecdh_logger->Log(EcdhStage::RecvDualMaskedSelf,
-                                options_.ecc_cryptor->GetPrivateKey(),
-                                item_count, masked_items);
-    }
-
-    self_ec_point_store->Save(masked_items);
-
-    if (masked_items.empty()) {
-      SPDLOG_INFO(
-          "RecvDualMaskedSelf:{} recv last batch finished, batch_count={}",
-          Id(), batch_count);
-      break;
-    } else {
-      if (options_.recovery_manager) {
-        self_ec_point_store->Flush();
-        options_.recovery_manager->UpdateEcdhDualMaskedItemSelfCount(
-            self_ec_point_store->ItemCount());
-      }
-    }
-
-    item_count += masked_items.size();
-    batch_count++;
-
-    // Call the hook.
-    if (options_.on_batch_finished) {
-      options_.on_batch_finished(batch_count);
     }
   }
 }
@@ -457,13 +390,11 @@ void EcdhPsiContext::RecvDualMaskedBatch(std::vector<std::string>* items,
   RecvBatchImpl(dual_mask_link_ctx_, batch_idx, tag, items);
 }
 
-void RunEcdhPsi(const EcdhPsiOptions& options,
+void RunEcdhKe(const EcdhPsiOptions& options,
                 const std::shared_ptr<IBasicBatchProvider>& batch_provider,
-                const std::shared_ptr<IEcPointStore>& self_ec_point_store,
                 const std::shared_ptr<IEcPointStore>& peer_ec_point_store) {
   YACL_ENFORCE(options.link_ctx->WorldSize() == 2);
-  YACL_ENFORCE(batch_provider != nullptr && self_ec_point_store != nullptr &&
-               peer_ec_point_store != nullptr);
+  YACL_ENFORCE(batch_provider != nullptr && peer_ec_point_store != nullptr);
 
   EcdhPsiContext handler(options);
   handler.CheckConfig();
@@ -512,15 +443,15 @@ void RunEcdhPsi(const EcdhPsiOptions& options,
     SPDLOG_ERROR("ID {}: Error in MaskPeer: {}", handler.Id(), e.what());
   }
 
-  try {
-    SPDLOG_INFO("ID {}: RecvDualMaskedSelf begin...", handler.Id());
-    handler.RecvDualMaskedSelf(self_ec_point_store);
-    SPDLOG_INFO("ID {}: RecvDualMaskedSelf finished.", handler.Id());
-  } catch (const std::exception& e) {
-    recv_peer_exptr = std::current_exception();
-    SPDLOG_ERROR("ID {}: Error in RecvDualMaskedSelf: {}", handler.Id(),
-                 e.what());
-  }
+  // try {
+  //   SPDLOG_INFO("ID {}: RecvDualMaskedSelf begin...", handler.Id());
+  //   handler.RecvDualMaskedSelf(self_ec_point_store);
+  //   SPDLOG_INFO("ID {}: RecvDualMaskedSelf finished.", handler.Id());
+  // } catch (const std::exception& e) {
+  //   recv_peer_exptr = std::current_exception();
+  //   SPDLOG_ERROR("ID {}: Error in RecvDualMaskedSelf: {}", handler.Id(),
+  //                e.what());
+  // }
 
   if (mask_self_exptr) {
     std::rethrow_exception(mask_self_exptr);
@@ -528,50 +459,45 @@ void RunEcdhPsi(const EcdhPsiOptions& options,
   if (mask_peer_exptr) {
     std::rethrow_exception(mask_peer_exptr);
   }
-  if (recv_peer_exptr) {
-    std::rethrow_exception(recv_peer_exptr);
-  }
+  // if (recv_peer_exptr) {
+  //   std::rethrow_exception(recv_peer_exptr);
+  // }
 }
 
-std::vector<std::string> RunEcdhPsi(
+std::vector<std::string> RunEcdhKe(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
-    const std::vector<std::string>& items, size_t target_rank, CurveType curve,
+    size_t items_size, size_t target_rank, CurveType curve,
     size_t batch_size) {
+  SPDLOG_INFO("RunEcdhKe items_size {} target_rank {} curve {} batch_size {}",
+              items_size, target_rank, size_t(curve), batch_size);
   EcdhPsiOptions options;
   options.ecc_cryptor = CreateEccCryptor(curve);
   options.link_ctx = link_ctx;
   options.target_rank = target_rank;
   options.batch_size = batch_size;
+  std::vector<std::string> items(items_size);
+  for (size_t i = 0; i < items_size; i++) {
+    items[i] = absl::StrCat("item_", i);
+  }
 
-  auto self_ec_point_store = std::make_shared<MemoryEcPointStore>();
   auto peer_ec_point_store = std::make_shared<MemoryEcPointStore>();
   auto batch_provider =
       std::make_shared<MemoryBatchProvider>(items, batch_size);
 
-  RunEcdhPsi(options, batch_provider, self_ec_point_store, peer_ec_point_store);
+  RunEcdhKe(options, batch_provider, peer_ec_point_store);
 
   // Originally we should setup a hashset for peer results.
   // But tests show that when items_count > 10,000,000, the performance of
   // |std::unordered_set| or |absl::flat_hash_set| drops significantly.
   // Besides, these hashset containers require more memory.
   // Here we choose the compact data structure and stable find costs.
-  std::vector<std::string> ret;
   std::vector<std::string> ret_items;
   std::vector<std::string> peer_results(peer_ec_point_store->content());
   std::sort(peer_results.begin(), peer_results.end());
-  const auto& self_results = self_ec_point_store->content();
-  for (uint32_t index = 0; index < self_results.size(); index++) {
-    if (std::binary_search(peer_results.begin(), peer_results.end(),
-                           self_results[index])) {
-      YACL_ENFORCE(index < items.size());
-      ret.push_back(items[index]);
-      ret_items.push_back(self_results[index]);
-    }
-  }
-  SPDLOG_INFO("ret {}", absl::BytesToHexString(ret[0]));
-  SPDLOG_INFO("self_results {}", absl::BytesToHexString(self_results[0]));
 
-  return ret;
+  SPDLOG_INFO("RunEcdhKe Finish  peer_results.size() {}", peer_results.size());
+
+  return peer_results;
 }
 
 }  // namespace psi::ecdh
