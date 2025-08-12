@@ -21,7 +21,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include "absl/strings/escaping.h"
 #include "spdlog/spdlog.h"
 #include "yacl/base/exception.h"
 #include "yacl/crypto/hash/hash_utils.h"
@@ -568,8 +567,6 @@ std::vector<std::string> RunEcdhPsi(
       ret_items.push_back(self_results[index]);
     }
   }
-  SPDLOG_INFO("ret {}", absl::BytesToHexString(ret[0]));
-  SPDLOG_INFO("self_results {}", absl::BytesToHexString(self_results[0]));
 
   return ret;
 }
