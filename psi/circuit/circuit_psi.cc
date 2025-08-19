@@ -1,0 +1,363 @@
+// Copyright 2022 Ant Group Co., Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "psi/circuit/circuit_psi.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <future>
+#include <memory>
+#include <numeric>
+#include <random>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "spdlog/spdlog.h"
+#include "yacl/base/exception.h"
+#include "yacl/crypto/hash/hash_utils.h"
+#include "yacl/utils/parallel.h"
+#include "yacl/utils/serialize.h"
+
+#include "psi/cryptor/cryptor_selector.h"
+#include "psi/utils/batch_provider_impl.h"
+
+namespace psi::circuit {
+
+size_t mask_size = kFinalCompareBytes;
+
+template <typename T>
+PsiDataBatch BatchData(const std::vector<T>& batch_items, std::string_view type,
+                       int32_t batch_idx) {
+  return BatchData(batch_items, std::unordered_map<uint32_t, uint32_t>(), type,
+                   batch_idx);
+}
+
+template <typename T>
+PsiDataBatch BatchData(
+    const std::vector<T>& batch_items,
+    const std::unordered_map<uint32_t, uint32_t>& duplicate_item_cnt,
+    std::string_view type, int32_t batch_idx) {
+  PsiDataBatch batch;
+  batch.is_last_batch = batch_items.empty();
+  batch.item_num = batch_items.size();
+  batch.batch_index = batch_idx;
+  batch.type = type;
+
+  if (!batch_items.empty()) {
+    // 校验所有数据长度是否相等
+    size_t expected_size = batch_items[0].size();
+    for (size_t i = 1; i < batch_items.size(); ++i) {
+      if (batch_items[i].size() != expected_size) {
+        throw std::invalid_argument("All items in batch must have the same size");
+      }
+    }
+    
+    batch.flatten_bytes.reserve(batch_items.size() * expected_size);
+    for (const auto& item : batch_items) {
+      batch.flatten_bytes.append(item);
+    }
+    for (const auto& [idx, cnt] : duplicate_item_cnt) {
+      batch.duplicate_item_cnt[idx] = cnt;
+    }
+  }
+  return batch;
+}
+
+
+template <typename T>
+void SendBatchImpl(
+    const std::vector<T>& batch_items,
+    const std::unordered_map<uint32_t, uint32_t>& duplicate_item_cnt,
+    const std::shared_ptr<yacl::link::Context>& link_ctx, std::string_view type,
+    int32_t batch_idx, std::string_view tag) {
+  auto batch = BatchData<T>(batch_items, duplicate_item_cnt, type, batch_idx);
+  // TODO(huocun) : fix interconnection protocol
+  link_ctx->SendAsyncThrottled(link_ctx->NextRank(), batch.Serialize(), tag);
+}
+
+void RecvBatchImpl(const std::shared_ptr<yacl::link::Context>& link_ctx,
+                   int32_t batch_idx, std::string_view tag,
+                   std::vector<std::string>* items) {
+  // FIXME(huocun) : fix interconnection protocol
+  PsiDataBatch batch =
+      PsiDataBatch::Deserialize(link_ctx->Recv(link_ctx->NextRank(), tag));
+
+  YACL_ENFORCE(batch.batch_index == batch_idx, "Expected batch {}, but got {} ",
+               batch_idx, batch.batch_index);
+  if (batch.item_num > 0) {
+    auto item_size = batch.flatten_bytes.size() / batch.item_num;
+    for (size_t i = 0; i < batch.item_num; ++i) {
+      items->emplace_back(batch.flatten_bytes.substr(i * item_size, item_size));
+    }
+  }
+}
+
+std::vector<std::string>Encrypt(const std::vector<std::string>& data) {
+  std::vector<std::string> encrypted_data;
+
+  for (size_t i = 0; i < data.size(); i++) {
+    encrypted_data.emplace_back("enc");
+  }
+
+  return encrypted_data;
+}
+
+std::vector<std::string>Decrypt(const std::vector<std::string>& data) {
+  std::vector<std::string> decrypted_data;
+
+  for (const auto& item : data) {
+    decrypted_data.emplace_back(item.substr(3));
+  }
+
+  return decrypted_data;
+}
+
+
+
+void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string>& peer_items_data) {
+    if (!peer_items.empty() && peer_items.size() == peer_items_data.size()) {
+        std::vector<size_t> indices(peer_items.size());
+        std::iota(indices.begin(), indices.end(), 0);
+        
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(indices.begin(), indices.end(), g);
+        
+        std::vector<std::string> shuffled_peer_items(peer_items.size());
+        std::vector<std::string> shuffled_peer_items_data(peer_items_data.size());
+        
+        for (size_t i = 0; i < indices.size(); ++i) {
+            shuffled_peer_items[i] = peer_items[indices[i]];
+            shuffled_peer_items_data[i] = peer_items_data[indices[i]];
+        }
+        
+        peer_items = std::move(shuffled_peer_items);
+        peer_items_data = std::move(shuffled_peer_items_data);
+    }
+}
+
+std::vector<std::vector<std::string>> RunEcdhPsi(
+    const std::shared_ptr<yacl::link::Context>& link_ctx,
+    const std::vector<std::string>& id, const std::vector<std::string>& data, CurveType curve) {
+    SPDLOG_INFO("Starting RunEcdhPsi with {} items, rank={}", id.size(), link_ctx->Rank());
+    
+    // 数据验证：检查id和data向量长度是否一致
+    if (id.size() != data.size()) {
+        SPDLOG_ERROR("Input validation failed: id.size()={}, data.size()={}", id.size(), data.size());
+        YACL_THROW("Input validation failed: id and data vectors must have the same size. "
+                   "id.size()={}, data.size()={}", id.size(), data.size());
+    }
+    SPDLOG_INFO("Input validation passed: {} items to process", id.size());
+    
+    SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
+    auto ecc_cryptor = CreateEccCryptor(curve);
+    // std::unordered_map<std::string, std::string> id_data;
+
+      
+    std::vector<std::string> masked_items;
+    std::vector<std::string> hashed_masked_items;
+    SPDLOG_INFO("Hashing and masking {} input items", id.size());
+    auto hashed_points = ecc_cryptor->HashInputs(id);
+    auto masked_points = ecc_cryptor->EccMask(hashed_points);
+    masked_items = ecc_cryptor->SerializeEcPoints(masked_points);
+    SPDLOG_INFO("Generated {} masked items", masked_items.size());  
+    auto tag1 = fmt::format("ECDHPSI:X^A");
+
+    SPDLOG_INFO("Sending {} masked items to peer", masked_items.size());
+    SendBatchImpl(masked_items, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                  "enc", 0, tag1);
+    SPDLOG_INFO("Encrypting {} data items", data.size());
+    auto encrypted_data =  Encrypt(data);//加密data
+    auto tag2 = fmt::format("ECDHPSI:encrypted_data");
+    // auto encrypted_data  = data;
+    SPDLOG_INFO("Sending {} encrypted data items to peer", encrypted_data.size());
+    SendBatchImpl(encrypted_data, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                  "enc", 0, tag2);
+
+
+    // 接收Y^A
+    std::vector<std::string> peer_items;
+    std::vector<std::string> peer_items_data;
+    // std::vector<std::string> dual_masked_peers;
+    // std::unordered_map<uint32_t, uint32_t> duplicate_item_cnt;
+    auto tag3 = fmt::format("ECDHPSI:Recv Y^A");
+    auto tag4 = fmt::format("ECDHPSI:Recv Enc(data)");
+    SPDLOG_INFO("Receiving peer masked items and encrypted data");
+    RecvBatchImpl(link_ctx,0, tag3, &peer_items);
+    RecvBatchImpl(link_ctx,0, tag4, &peer_items_data);
+    SPDLOG_INFO("Received {} peer items and {} peer data items", peer_items.size(), peer_items_data.size());
+    
+
+    // 随机打乱 peer_items 和 peer_items_data，保持相同的打乱顺序
+    if (link_ctx->Rank() == 1)
+    {
+      SPDLOG_INFO("Shuffling peer items to ensure privacy");
+      shuffle_items(peer_items, peer_items_data);
+    }
+    
+    
+    auto peer_points = ecc_cryptor->DeserializeEcPoints(peer_items);
+    // Compute (y^b)^a, Enc(data)-random_data.
+    std::vector<std::string> dual_masked_peers;
+    std::vector<std::string> dual_masked_peers_data;
+    std::vector<std::string> random_datas;
+    // 生成2^60到2^61范围内的随机整数字符串
+    SPDLOG_INFO("Compute (y^b)^a  And  Enc(data)-random_data");
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis(1ULL << 60, (1ULL << 61) - 1);
+    if (!peer_items.empty()) {
+      // TODO: avoid mem copy
+      const auto& masked_points = ecc_cryptor->EccMask(peer_points);
+      for (uint32_t i = 0; i != peer_points.size(); ++i) {
+        const auto masked =
+            ecc_cryptor->SerializeEcPoint(masked_points[i]);
+        // In the final comparison, we only send & compare `kFinalCompareBytes`
+        // number of bytes.
+        std::string cipher(
+            masked.data<char>() + masked.size() - mask_size,
+            mask_size);
+        dual_masked_peers.emplace_back(std::move(cipher));
+        std::string random_data = std::to_string(dis(gen));
+        random_datas.emplace_back(random_data);
+        dual_masked_peers_data.emplace_back(peer_items_data[i]  +random_data);
+      }
+    }
+    SPDLOG_INFO("dual_masked_peers size: {}", dual_masked_peers.size());
+    tag1 = fmt::format("ECDHPSI:X^A^B");
+    tag2 = fmt::format("ECDHPSI:encrypted_data_random");
+    std::vector<std::string> intersect_mask_id;
+    
+
+    if (link_ctx->Rank() == 1)
+    {
+      SPDLOG_INFO("Rank 1: Sending {} dual masked items and data", dual_masked_peers.size());
+      SendBatchImpl(dual_masked_peers, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                    "enc", 0, tag1+"1");
+      SendBatchImpl(dual_masked_peers_data, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                    "enc", 0, tag2+"1");
+      std::vector<std::string> intersect_mask_id;
+      std::vector<std::string> self_enc_data_mask;
+      std::vector<std::string> intersect_random_self;
+
+      SPDLOG_INFO("Rank 1: Receiving intersection results from peer");
+      RecvBatchImpl(link_ctx,0, tag1+"2", &intersect_mask_id);
+      RecvBatchImpl(link_ctx,0, tag2+"2", &self_enc_data_mask);
+      SPDLOG_INFO("Rank 1: Received {} intersection items", intersect_mask_id.size());
+
+      // 找到dual_masked_self和dual_masked_peers交集
+      // 1.使用unordered_set计算交集，保持原始索引顺序
+      // 优化查找性能：使用unordered_map建立值到索引的映射
+      std::unordered_map<std::string, size_t> peers_index_map;
+      for (size_t j = 0; j < dual_masked_peers.size(); j++) {
+        peers_index_map[dual_masked_peers[j]] = j;
+      }
+      
+      // O(n)时间复杂度查找匹配项，n为intersect_mask_id大小
+      for (const auto& mask_id : intersect_mask_id) {
+        auto it = peers_index_map.find(mask_id);
+        if (it != peers_index_map.end()) {
+          intersect_random_self.push_back(random_datas[it->second]);
+        }
+      }
+      
+      SPDLOG_INFO("Rank 1: Decrypting {} intersection data items", self_enc_data_mask.size());
+      std::vector<std::string> intersect_data_self= Decrypt(self_enc_data_mask);
+      SPDLOG_INFO("Rank 1: PSI completed with {} intersection items", intersect_data_self.size());
+      return std::vector<std::vector<std::string>>{intersect_random_self,intersect_data_self};
+
+    }else{
+      SPDLOG_INFO("Rank 0: Starting intersection computation");
+      // 接收Y^A^B，Enc(data)-r
+      std::vector<std::string> dual_masked_self;
+      std::vector<std::string> self_enc_data_mask;
+      std::vector<std::string> intersect_mask_id;
+      std::vector<std::string> intersect_random_self;
+      std::vector<std::string> intersect_enc_data_mask_self;
+      std::vector<std::string> intersect_enc_data_mask_peer;
+
+      SPDLOG_INFO("Rank 0: Receiving dual masked data from peer");
+      RecvBatchImpl(link_ctx,0, tag1+"1", &dual_masked_self);
+      RecvBatchImpl(link_ctx,0, tag2+"1", &self_enc_data_mask);
+      SPDLOG_INFO("Rank 0: Received {} dual masked items", dual_masked_self.size());
+
+
+      SPDLOG_INFO("Rank 0: Computing intersection set with {} self items and {} peer items", 
+                  dual_masked_self.size(), dual_masked_peers.size());
+      // 终极优化：使用unordered_set和unordered_map，单次遍历完成所有操作
+      std::unordered_set<std::string> self_set(dual_masked_self.begin(), dual_masked_self.end());
+      std::unordered_map<std::string, uint32_t> self_index_map;
+      
+      // 预分配内存，提升性能
+      size_t estimated_intersect_size = std::min(dual_masked_self.size(), dual_masked_peers.size());
+      SPDLOG_INFO("Rank 0: Pre-allocating memory for estimated {} intersection items", estimated_intersect_size);
+      intersect_mask_id.reserve(estimated_intersect_size);
+      intersect_enc_data_mask_self.reserve(estimated_intersect_size);
+      intersect_enc_data_mask_peer.reserve(estimated_intersect_size);
+      intersect_random_self.reserve(estimated_intersect_size);
+      
+      // 建立self的值到索引映射
+      for (uint32_t i = 0; i < dual_masked_self.size(); i++) {
+        self_index_map[dual_masked_self[i]] = i;
+      }
+      
+      SPDLOG_INFO("Compute intersect data in single pass");
+      // 单次遍历完成交集计算和数据收集，O(n)时间复杂度
+      for (uint32_t index = 0; index < dual_masked_peers.size(); index++) {
+        const auto& peer_item = dual_masked_peers[index];
+        if (self_set.find(peer_item) != self_set.end()) {
+          // 找到交集元素，直接收集所有相关数据
+          intersect_mask_id.push_back(peer_item);
+          intersect_random_self.push_back(random_datas[index]);
+          intersect_enc_data_mask_peer.push_back(dual_masked_peers_data[index]);
+          
+          // 获取对应的self数据
+          auto it = self_index_map.find(peer_item);
+          if (it != self_index_map.end()) {
+            intersect_enc_data_mask_self.push_back(self_enc_data_mask[it->second]);
+          }
+        }
+      }
+
+      // intersect_enc_data_mask_self 解密
+      SPDLOG_INFO("Rank 0: Decrypting {} intersection data items", intersect_enc_data_mask_self.size());
+      std::vector<std::string> intersect_data_self= Decrypt(intersect_enc_data_mask_self);
+
+      SPDLOG_INFO("Rank 0: Sending {} intersection results to peer", intersect_mask_id.size());
+      SendBatchImpl(intersect_mask_id, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                    "enc", 0, tag1+"2");
+      SendBatchImpl(intersect_enc_data_mask_peer, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
+                    "enc", 0, tag2+"2");
+      SPDLOG_INFO("Rank 0: PSI completed with {} intersection items", intersect_data_self.size());
+      return std::vector<std::vector<std::string>>{intersect_data_self,intersect_random_self};
+    }
+    
+
+  SPDLOG_WARN("RunEcdhPsi: Unexpected code path reached, returning empty result");
+  return std::vector<std::vector<std::string>>();
+
+}
+
+
+
+          
+
+
+
+
+
+}  // namespace psi::ecdh

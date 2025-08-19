@@ -86,6 +86,7 @@
         "shared_mutex": "cpp",
         "strstream": "cpp",
         "syncstream": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "numeric": "cpp"
     }
 }
