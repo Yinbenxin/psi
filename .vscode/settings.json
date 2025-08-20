@@ -87,6 +87,9 @@
         "strstream": "cpp",
         "syncstream": "cpp",
         "*.tcc": "cpp",
-        "numeric": "cpp"
+        "numeric": "cpp",
+        "atomic": "cpp",
+        "chrono": "cpp",
+        "random": "cpp"
     }
 }

@@ -48,7 +48,7 @@ def psi_deps():
     _com_github_open_source_parsers_jsoncpp()
     _com_github_pybind11_bazel()
     _com_github_pybind11()
-
+    _heu()
 
 def _yacl():
     maybe(
@@ -480,3 +480,15 @@ def _com_github_pybind11():
             "https://github.com/pybind/pybind11/archive/refs/tags/v2.13.6.tar.gz",
         ],
     )
+
+
+def _heu():
+    maybe(
+        http_archive,
+        name = "heu",
+        sha256 = "152309975a6bb655ef6f33cd14cd85fc81a8bb1aabc168f3b8ea545a56e2a088",
+        strip_prefix = "heu-0.5.2b0",
+        urls = ["https://github.com/secretflow/heu/archive/refs/tags/v0.5.2b0.tar.gz",
+        ],
+    )
+    

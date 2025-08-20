@@ -41,3 +41,30 @@ psi_cc_test(
         "//psi/utils:test_utils",
     ],
 )
+
+
+psi_cc_library(
+    name = "he_unit",
+    srcs = ["he_unit.cc"],
+    hdrs = ["he_unit.h"],
+    deps = [
+        "@heu//heu/library/algorithms/paillier_zahlen:paillier_zahlen",
+    ],
+)
+
+psi_cc_test(
+    name = "he_unit_test",
+    srcs = ["he_unit_test.cc"],
+    deps = [
+        ":he_unit",
+        "@heu//heu/library/algorithms/paillier_zahlen:paillier_zahlen",
+    ],
+)
+
+psi_cc_test(
+    name = "he_pack_test",
+    srcs = ["he_pack_test.cc"],
+    deps = [
+        "@heu//heu/library/algorithms/paillier_zahlen:paillier_zahlen",
+    ],
+)
