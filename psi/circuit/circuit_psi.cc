@@ -34,6 +34,8 @@
 
 #include "psi/cryptor/cryptor_selector.h"
 #include "psi/utils/batch_provider_impl.h"
+#include "psi/circuit/he_unit.h"
+
 
 namespace psi::circuit {
 
@@ -116,17 +118,40 @@ std::vector<std::string>Encrypt(const std::vector<std::string>& data) {
   return encrypted_data;
 }
 
-std::vector<std::string>Decrypt(const std::vector<std::string>& data) {
-  std::vector<std::string> decrypted_data;
+std::vector<std::string>Encrypt(const std::vector<std::vector<uint64_t>>& data) {
+  std::vector<std::string> encrypted_data;
+
+  for (size_t i = 0; i < data.size(); i++) {
+    encrypted_data.emplace_back("enc");
+  }
+
+  return encrypted_data;
+}
+
+  // std::vector<std::string>Decrypt(const std::vector<std::string>& data) {
+  //   std::vector<std::string> decrypted_data;
+
+  //   for (const auto& item : data) {
+  //     decrypted_data.emplace_back(item.substr(3));
+  //   }
+
+  //   return decrypted_data;
+  // }
+
+std::vector<std::vector<uint64_t>>Decrypt(const std::vector<std::string>& data) {
+  std::vector<std::vector<uint64_t>> decrypted_data;
 
   for (const auto& item : data) {
-    decrypted_data.emplace_back(item.substr(3));
+    if (item.substr(0, 3) == "enc") {
+          std::vector<uint64_t> decrypted_item = {1,2,3,4,5};
+          decrypted_data.emplace_back(decrypted_item);
+    }
+    std::vector<uint64_t> decrypted_item = {1,2,3,4,5};
+    decrypted_data.emplace_back(decrypted_item);
   }
 
   return decrypted_data;
 }
-
-
 
 void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string>& peer_items_data) {
     if (!peer_items.empty() && peer_items.size() == peer_items_data.size()) {
@@ -150,9 +175,9 @@ void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string
     }
 }
 
-std::vector<std::vector<std::string>> RunEcdhPsi(
+std::vector<std::vector<uint64_t>> RunEcdhPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
-    const std::vector<std::string>& id, const std::vector<std::string>& data, CurveType curve) {
+    const std::vector<std::string>& id, const std::vector<std::vector<uint64_t>>& data, CurveType curve) {
     SPDLOG_INFO("Starting RunEcdhPsi with {} items, rank={}", id.size(), link_ctx->Rank());
     
     // 数据验证：检查id和data向量长度是否一致
@@ -161,6 +186,45 @@ std::vector<std::vector<std::string>> RunEcdhPsi(
         YACL_THROW("Input validation failed: id and data vectors must have the same size. "
                    "id.size()={}, data.size()={}", id.size(), data.size());
     }
+    auto each_raw_data_size = data[0].size();
+    auto data_size_each_ciphertext = 16;  // 每个密文容纳16个明文
+    auto ciphertext_size = (each_raw_data_size + data_size_each_ciphertext - 1) / data_size_each_ciphertext; // 向上取整
+    std::unique_ptr<heu::lib::algorithms::paillier_z::PaillierHE> he_ = std::make_unique<heu::lib::algorithms::paillier_z::PaillierHE>(2048);
+    std::vector<std::vector<yacl::math::MPInt>> packed_data(data.size());
+    SPDLOG_ERROR("ciphertext_size={}", ciphertext_size);
+    for (size_t i = 0; i < data.size(); i++) {
+      for (size_t j = 0; j < ciphertext_size; j++) {
+        // 准备要打包的数据向量
+        std::vector<int64_t> data_to_pack;
+        size_t start_idx = j * data_size_each_ciphertext;
+        size_t end_idx = std::min(start_idx + data_size_each_ciphertext, data[i].size());
+        
+        // 收集data_size_each_ciphertext个元素
+        for (size_t k = start_idx; k < end_idx; k++) {
+          data_to_pack.push_back(static_cast<int64_t>(data[i][k]));
+        }
+        
+        // 如果不足data_size_each_ciphertext个元素，用0填充
+        while (data_to_pack.size() < static_cast<size_t>(data_size_each_ciphertext)) {
+          data_to_pack.push_back(0);
+        }
+        
+        // 打包并添加到结果中
+        heu::lib::algorithms::MPInt packed = heu::lib::algorithms::paillier_z::pack_int(data_to_pack, data_size_each_ciphertext);
+        packed_data[i].emplace_back(packed);
+      }
+    }
+    SPDLOG_ERROR("packed_data.size()={}", packed_data.size());
+    std::vector<std::vector<std::string>>ciphertexts(data.size());
+    for (size_t i = 0; i < data.size(); i++) {
+      for (size_t j = 0; j < ciphertext_size; j++) {
+        // 加密
+        auto ciphertext = he_->Encrypt(packed_data[i][j]);
+        auto ciphertext_str = ciphertext.ToString();
+        ciphertexts[i].emplace_back(ciphertext_str);
+      }
+    }
+
     SPDLOG_INFO("Input validation passed: {} items to process", id.size());
     
     SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
@@ -276,9 +340,9 @@ std::vector<std::vector<std::string>> RunEcdhPsi(
       }
       
       SPDLOG_INFO("Rank 1: Decrypting {} intersection data items", self_enc_data_mask.size());
-      std::vector<std::string> intersect_data_self= Decrypt(self_enc_data_mask);
+      std::vector<std::vector<uint64_t>> intersect_data_self= Decrypt(self_enc_data_mask);
       SPDLOG_INFO("Rank 1: PSI completed with {} intersection items", intersect_data_self.size());
-      return std::vector<std::vector<std::string>>{intersect_random_self,intersect_data_self};
+      return intersect_data_self;
 
     }else{
       SPDLOG_INFO("Rank 0: Starting intersection computation");
@@ -335,7 +399,7 @@ std::vector<std::vector<std::string>> RunEcdhPsi(
 
       // intersect_enc_data_mask_self 解密
       SPDLOG_INFO("Rank 0: Decrypting {} intersection data items", intersect_enc_data_mask_self.size());
-      std::vector<std::string> intersect_data_self= Decrypt(intersect_enc_data_mask_self);
+      std::vector<std::vector<uint64_t>> intersect_data_self= Decrypt(intersect_enc_data_mask_self);
 
       SPDLOG_INFO("Rank 0: Sending {} intersection results to peer", intersect_mask_id.size());
       SendBatchImpl(intersect_mask_id, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
@@ -343,12 +407,13 @@ std::vector<std::vector<std::string>> RunEcdhPsi(
       SendBatchImpl(intersect_enc_data_mask_peer, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                     "enc", 0, tag2+"2");
       SPDLOG_INFO("Rank 0: PSI completed with {} intersection items", intersect_data_self.size());
-      return std::vector<std::vector<std::string>>{intersect_data_self,intersect_random_self};
+      // return std::vector<std::vector<uint64_t>>{intersect_data_self,{12,3,4,2}};
+      return intersect_data_self;
+
     }
     
 
   SPDLOG_WARN("RunEcdhPsi: Unexpected code path reached, returning empty result");
-  return std::vector<std::vector<std::string>>();
 
 }
 

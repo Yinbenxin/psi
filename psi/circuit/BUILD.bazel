@@ -30,6 +30,7 @@ psi_cc_library(
         "@com_google_absl//absl/strings",
         "@yacl//yacl/link",
         "@yacl//yacl/utils:parallel",
+        ":he_unit",
     ],
 )
 

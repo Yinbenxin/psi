@@ -36,16 +36,18 @@ class PaillierHETest : public ::testing::Test {
 
 TEST_F(PaillierHETest, BasicEncryptDecrypt) {
   // 测试基本的加密解密功能
-  MPInt plaintext(12345);
-  
-  // 加密
-  Ciphertext ciphertext = he_->Encrypt(plaintext);
-  auto ciphertext_str = ciphertext.ToString();
-  std::cout << "ciphertext: " << ciphertext_str << std::endl;
-  // 解密
-  MPInt decrypted = he_->Decrypt(ciphertext);
-  
-  EXPECT_EQ(plaintext, decrypted);
+  for (int i = 0; i < 32; i++) {
+    MPInt plaintext(1<<i);
+    
+    // 加密
+    Ciphertext ciphertext = he_->Encrypt(plaintext);
+    auto ciphertext_str = ciphertext.ToString();
+    std::cout << "ciphertext: " << ciphertext_str.size() << std::endl;
+    // 解密
+    MPInt decrypted = he_->Decrypt(ciphertext);
+    
+    EXPECT_EQ(plaintext, decrypted);
+  }
 }
 
 // TEST_F(PaillierHETest, HomomorphicAddition) {

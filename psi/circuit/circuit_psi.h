@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <sys/types.h>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -35,9 +36,9 @@
 
 namespace psi::circuit {
 
-std::vector<std::vector<std::string>> RunEcdhPsi(
+std::vector<std::vector<uint64_t>> RunEcdhPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
-    const std::vector<std::string>& id, const std::vector<std::string>& data, CurveType curve);
+    const std::vector<std::string>& id, const std::vector<std::vector<uint64_t>>& data, CurveType curve);
 
 
 }  // namespace psi::ecdh
