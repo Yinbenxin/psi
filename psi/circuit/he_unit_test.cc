@@ -34,43 +34,62 @@ class PaillierHETest : public ::testing::Test {
   std::unique_ptr<PaillierHE> he_;
 };
 
+
+TEST_F(PaillierHETest, MTintTest) {
+  // 测试基本的加密解密功能
+    MPInt plaintext(1<<20);
+    // 加密
+    Ciphertext ciphertext = he_->Encrypt(plaintext);
+    auto ciphertext_str = ciphertext.ToString();
+    std::cout << "ciphertext: " << ciphertext_str.size() << std::endl;
+    // 解密
+    MPInt ciphertext_int(ciphertext_str);
+    MPInt decrypted = he_->Decrypt(Ciphertext(ciphertext_int));
+    
+    EXPECT_EQ(plaintext, decrypted);
+}
+
 TEST_F(PaillierHETest, BasicEncryptDecrypt) {
   // 测试基本的加密解密功能
-  for (int i = 0; i < 32; i++) {
-    MPInt plaintext(1<<i);
+    MPInt plaintext(1<<20);
     
     // 加密
     Ciphertext ciphertext = he_->Encrypt(plaintext);
     auto ciphertext_str = ciphertext.ToString();
     std::cout << "ciphertext: " << ciphertext_str.size() << std::endl;
     // 解密
+
     MPInt decrypted = he_->Decrypt(ciphertext);
     
     EXPECT_EQ(plaintext, decrypted);
-  }
 }
 
-// TEST_F(PaillierHETest, HomomorphicAddition) {
-//   // 测试同态加法
-//   MPInt m1(100);
-//   MPInt m2(200);
+TEST_F(PaillierHETest, HomomorphicAddition) {
+  // 测试同态加法
+  MPInt m1(100);
+  MPInt m2(200);
+  auto he_1 = std::make_unique<PaillierHE>(2048);
   
-//   Ciphertext ct1 = he_->Encrypt(m1);
-//   Ciphertext ct2 = he_->Encrypt(m2);
+  Ciphertext ct1 = he_->Encrypt(m1);
+  Ciphertext ct2 = he_->Encrypt(m2);
   
-//   // 密文加密文
-//   Ciphertext ct_sum = he_->Add(ct1, ct2);
-//   MPInt result = he_->Decrypt(ct_sum);
+  // 密文加密文
+  Ciphertext ct_sum = he_->Add(ct1, ct2);
+  MPInt result = he_->Decrypt(ct_sum);
   
-//   EXPECT_EQ(result, MPInt(300));
+  EXPECT_EQ(result, MPInt(300));
+  auto pk = he_->GetPublicKey();
+  auto pk_buf = pk.Serialize();
+  PublicKey pk_1;
+  pk_1.Deserialize(pk_buf);
+  auto  evaluator_ = std::make_shared<Evaluator>(pk_1);
+  // 密文加明文
+  MPInt m3(50);
+  Ciphertext ct_sum2 = evaluator_->Add(ct1, m3);
+  MPInt result2 = he_->Decrypt(ct_sum2);
   
-//   // 密文加明文
-//   MPInt m3(50);
-//   Ciphertext ct_sum2 = he_->Add(ct1, m3);
-//   MPInt result2 = he_->Decrypt(ct_sum2);
-  
-//   EXPECT_EQ(result2, MPInt(150));
-// }
+  EXPECT_EQ(result2, MPInt(150));
+}
 
 // TEST_F(PaillierHETest, HomomorphicMultiplication) {
 //   // 测试同态乘法（密文乘明文）

@@ -50,27 +50,27 @@ TEST_P(EcdhPsiTest, Works) {
   auto proc =
       [&](const std::shared_ptr<yacl::link::Context>& ctx,
           const std::vector<std::string>& id,
-          const std::vector<std::vector<uint64_t>>& data) -> std::vector<std::vector<uint64_t>> {
+          const std::vector<std::vector<int64_t>>& data) -> std::vector<std::vector<int64_t>> {
     return RunEcdhPsi(ctx, id, data, params.curve_type);
   };
   SPDLOG_INFO("items_a:{}", params.items_a[0]);  
-  // 创建测试数据：每个item对应一个包含多个uint64_t的向量
-  std::vector<std::vector<uint64_t>> data_a(params.items_a.size(), std::vector<uint64_t>(32, 1));
-  std::vector<std::vector<uint64_t>> data_b(params.items_b.size(), std::vector<uint64_t>(32, 1));
+  // 创建测试数据：每个item对应一个包含多个int64_t的向量
+  std::vector<std::vector<int64_t>> data_a(params.items_a.size(), std::vector<int64_t>(2, 10));
+  std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(32, 100));
 
-  std::future<std::vector<std::vector<uint64_t>>> fa =
+  std::future<std::vector<std::vector<int64_t>>> fa =
       std::async(proc, ctxs[0], params.items_a, data_a);
-  std::future<std::vector<std::vector<uint64_t>>> fb =
+  std::future<std::vector<std::vector<int64_t>>> fb =
       std::async(proc, ctxs[1], params.items_b, data_b);
 
   auto results_a = fa.get();
   auto results_b = fb.get();
-  // for(size_t i=0;i<results_a[0].size();i++){
-  //     // SPDLOG_INFO("results_a:[0]:{}, [1]:{}", results_a[0][i],results_a[1][i]);
-  //     // SPDLOG_INFO("results_b:[0]:{}, [1]:{}", results_b[0][i],results_b[1][i]);
-  //     // EXPECT_EQ(results_a[0][i],results_b[0][i]);
-  //     // EXPECT_EQ(results_a[1][i],results_b[1][i]);
-  // }
+  for(size_t i=0;i<1;i++){
+      SPDLOG_INFO("results_a:[0]:{}, [33]:{}", results_a[i][0],results_a[i][33]);
+      SPDLOG_INFO("results_b:[0]:{}, [33]:{}", results_b[i][0],results_b[i][33]);
+      // EXPECT_EQ(results_a[0][i],results_b[0][i]);
+      // EXPECT_EQ(results_a[1][i],results_b[1][i]);
+  }
 
   // auto intersection = test::GetIntersection(params.items_a, params.items_b);
   // if (params.target_rank == yacl::link::kAllRank || params.target_rank == 0) {

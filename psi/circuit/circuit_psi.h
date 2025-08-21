@@ -36,9 +36,23 @@
 
 namespace psi::circuit {
 
-std::vector<std::vector<uint64_t>> RunEcdhPsi(
+std::vector<std::vector<int64_t>> RunEcdhPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
-    const std::vector<std::string>& id, const std::vector<std::vector<uint64_t>>& data, CurveType curve);
+    const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve);
+
+// 数据打包函数：将原始数据打包成MPInt向量
+std::vector<std::vector<yacl::math::MPInt>> PackDataToMPInt(
+    const std::vector<std::vector<int64_t>>& data, 
+    int data_size_each_ciphertext = 16);
+
+// 数据解包函数：将MPInt向量解包回原始数据
+std::vector<std::vector<int64_t>> UnpackDataFromMPInt(
+    const std::vector<std::vector<yacl::math::MPInt>>& packed_data,
+    size_t original_data_size,
+    int data_size_each_ciphertext = 16);
+
+// 字符串分割函数
+std::vector<std::string> SplitString(const std::string& str, const std::string& delimiter);
 
 
 }  // namespace psi::ecdh
