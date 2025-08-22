@@ -124,25 +124,6 @@ size_t ExchangeSetSize(const std::shared_ptr<yacl::link::Context>& link_ctx,
 }
 
 
-std::vector<std::string>Encrypt(const std::vector<std::string>& data) {
-  std::vector<std::string> encrypted_data;
-
-  for (size_t i = 0; i < data.size(); i++) {
-    encrypted_data.emplace_back("enc");
-  }
-
-  return encrypted_data;
-}
-
-std::vector<std::string>Encrypt(const std::vector<std::vector<int64_t>>& data) {
-  std::vector<std::string> encrypted_data;
-
-  for (size_t i = 0; i < data.size(); i++) {
-    encrypted_data.emplace_back("enc");
-  }
-
-  return encrypted_data;
-}
 
 
 // 去除字符串末尾的填充字符（'-'）
@@ -177,31 +158,8 @@ std::vector<std::string> SplitString(const std::string& str, const std::string& 
   return result;
 }
 
-std::vector<std::vector<int64_t>>Decrypt(const std::vector<std::string>& data) {
-  std::vector<std::vector<int64_t>> decrypted_data;
 
-  for (const auto& item : data) {
-    if (item.substr(0, 3) == "enc") {
-          std::vector<int64_t> decrypted_item = {1,2,3,4,5};
-          decrypted_data.emplace_back(decrypted_item);
-    }
-    std::vector<int64_t> decrypted_item = {1,2,3,4,5};
-    decrypted_data.emplace_back(decrypted_item);
-  }
 
-  return decrypted_data;
-}
-
-// 单个字符串解密函数（去除填充）
-std::vector<int64_t> Decrypt(const std::string& data) {
-    // 先去除填充
-    std::string unpaddedData = RemovePadding(data);
-    
-    // 这里应该实现实际的解密逻辑
-    // 目前返回示例数据
-    std::vector<int64_t> decrypted_item = {1,2,3,4,5};
-    return decrypted_item;
-}
 
 // 数据打包函数：将原始数据打包成MPInt向量
 std::vector<std::vector<yacl::math::MPInt>> PackDataToMPInt(
@@ -358,7 +316,7 @@ void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string
 std::vector<std::vector<int64_t>> RunEcdhPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve) {
-    SPDLOG_ERROR("rank {} Starting RunEcdhPsi with: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
+    SPDLOG_INFO("rank {} Starting RunEcdhPsi with: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
     
     // 数据验证：检查id和data向量长度是否一致
     if (id.size() != data.size()) {
@@ -423,10 +381,9 @@ std::vector<std::vector<int64_t>> RunEcdhPsi(
     SendBatchImpl(masked_items, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                   "enc", 0, tag1);
     SPDLOG_INFO("Encrypting {} data items", data.size());
-    auto encrypted_data =  Encrypt(data);//加密data
     auto tag2 = fmt::format("ECDHPSI:encrypted_data");
     // auto encrypted_data  = data;
-    SPDLOG_INFO("Sending {} encrypted data items to peer", encrypted_data.size());
+    SPDLOG_INFO("Sending {} encrypted data items to peer", ciphertexts.size());
     SendBatchImpl(ciphertexts, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                   "enc", 0, tag2);
 

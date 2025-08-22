@@ -89,8 +89,8 @@ INSTANTIATE_TEST_SUITE_P(
     Works_Instances, EcdhPsiTest,
     testing::Values(
         // // more than one batch
-        TestParams{test::CreateRangeItems(0, 1000),
-                   test::CreateRangeItems(5, 1000), yacl::link::kAllRank,
+        TestParams{test::CreateRangeItems(0, 10000),
+                   test::CreateRangeItems(5, 10000), yacl::link::kAllRank,
                    CurveType::CURVE_FOURQ}  //
         ));
 
