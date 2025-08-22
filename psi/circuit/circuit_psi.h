@@ -36,7 +36,7 @@
 
 namespace psi::circuit {
 
-std::vector<std::vector<int64_t>> RunEcdhPsi(
+std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve);
 

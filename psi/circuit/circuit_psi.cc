@@ -313,10 +313,10 @@ void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string
     }
 }
 
-std::vector<std::vector<int64_t>> RunEcdhPsi(
+std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve) {
-    SPDLOG_INFO("rank {} Starting RunEcdhPsi with: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
+    SPDLOG_INFO("rank {} Starting RunCircuitPsi with: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
     
     // 数据验证：检查id和data向量长度是否一致
     if (id.size() != data.size()) {
