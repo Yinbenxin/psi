@@ -363,7 +363,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       }
     }
     
-    SPDLOG_ERROR("ciphertexts.size()={}, ciphertexts_ele_size = {}", ciphertexts.size(), ciphertexts[0].size());
+    SPDLOG_INFO("ciphertexts.size()={}, ciphertexts_ele_size = {}", ciphertexts.size(), ciphertexts[0].size());
     SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
     auto ecc_cryptor = CreateEccCryptor(curve);
     // std::unordered_map<std::string, std::string> id_data;
