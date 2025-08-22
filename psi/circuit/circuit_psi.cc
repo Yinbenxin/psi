@@ -336,8 +336,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
 
     // 使用新的打包函数
     std::vector<std::vector<yacl::math::MPInt>> packed_data = PackDataToMPInt(data, data_size_each_ciphertext);
-    SPDLOG_ERROR("ciphertext_size={}", ciphertext_size);
-    SPDLOG_ERROR("packed_data.size()={}", packed_data.size());
+    SPDLOG_INFO("ciphertext_size={}", ciphertext_size);
+    SPDLOG_INFO("packed_data.size()={}", packed_data.size());
     std::vector<std::string>ciphertexts(data.size(), "");
     size_t max_size_ciphertexts = 0;
     for (size_t i = 0; i < data.size(); i++) {
