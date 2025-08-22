@@ -253,8 +253,12 @@ std::vector<std::vector<int64_t>> ciphertext_random(const yacl::Buffer& pk_buf, 
     heu::lib::algorithms::paillier_z::PublicKey pk_peer;
     pk_peer.Deserialize(pk_buf);
     auto  evaluator_peer = std::make_shared<heu::lib::algorithms::paillier_z::Evaluator>(pk_peer);
-
-    auto max_size_ciphertexts = ciphertext_str[0].size();
+    size_t max_size_ciphertexts = 0;
+    if (ciphertext_str.size()>0)
+    {
+       max_size_ciphertexts = ciphertext_str[0].size();
+    }
+    
     std::vector<std::string> ciphertexts(ciphertext_str.size(), "");
     std::vector<std::vector<int64_t>> random_data_uints(ciphertext_str.size());
     for (size_t i = 0; i < ciphertext_str.size(); i++)
@@ -316,23 +320,32 @@ void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string
 std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve) {
-    SPDLOG_INFO("rank {} Starting RunCircuitPsi with: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
+    SPDLOG_INFO("rank {} Starting RunCircuitPsi with: id.size()={}, data.size()={}",link_ctx->Rank(), id.size(), data.size());
+    size_t each_raw_data_size = 0;
+    
+    if (data.size() > 0)
+    {
+      SPDLOG_INFO("data[0].size()={}", data[0].size());
+      each_raw_data_size = data[0].size();
+    }
     
     // 数据验证：检查id和data向量长度是否一致
     if (id.size() != data.size()) {
-        SPDLOG_ERROR("rank {} Input validation failed: id.size()={}, data.size()={}, data[0].size()={}",link_ctx->Rank(), id.size(), data.size(), data[0].size());
-        YACL_THROW("Input validation failed: id and data vectors must have the same size. "
-                   "id.size()={}, data.size()={}", id.size(), data.size());
+        SPDLOG_ERROR("rank {} Input validation failed: id.size()={}, data.size()={}",link_ctx->Rank(), id.size(), data.size());
     }
-    auto data_size_each_ciphertext = 16;  // 每个密文容纳16个明文
-    auto each_raw_data_size = data[0].size();
-    auto ciphertext_size = (each_raw_data_size + data_size_each_ciphertext - 1) / data_size_each_ciphertext; // 向上取整
+    size_t data_size_each_ciphertext = 16;  // 每个密文容纳16个明文
+    size_t ciphertext_size = (each_raw_data_size + data_size_each_ciphertext - 1) / data_size_each_ciphertext; // 向上取整
     std::shared_ptr<heu::lib::algorithms::paillier_z::PaillierHE> he_ = std::make_unique<heu::lib::algorithms::paillier_z::PaillierHE>(2048);
     auto pk = he_->GetPublicKey();
     auto pk_buf = pk.Serialize();
     link_ctx->SendAsync(link_ctx->NextRank(), pk_buf, "exchange pk");
     auto recv_pk_buf = link_ctx->Recv(link_ctx->NextRank(), "exchange pk");
-    auto peer_size = ExchangeSetSize(link_ctx, data[0].size());
+    auto peer_size = ExchangeSetSize(link_ctx, each_raw_data_size);
+    if (peer_size == each_raw_data_size && each_raw_data_size==0)
+    {
+      return {};
+    }
+    
 
     // 使用新的打包函数
     std::vector<std::vector<yacl::math::MPInt>> packed_data = PackDataToMPInt(data, data_size_each_ciphertext);
@@ -353,7 +366,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
           max_size_ciphertexts = ciphertexts[i].size();
         }
     }
-    SPDLOG_INFO("{} max_size_ciphertexts={}", link_ctx->Rank(), max_size_ciphertexts);
+    SPDLOG_INFO("{} max_size_ciphertexts={}, ciphertexts.size(){}", link_ctx->Rank(), max_size_ciphertexts, ciphertexts.size());
 
     for (size_t i = 0; i < ciphertexts.size(); i++)
     {
@@ -363,7 +376,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       }
     }
     
-    SPDLOG_INFO("ciphertexts.size()={}, ciphertexts_ele_size = {}", ciphertexts.size(), ciphertexts[0].size());
+    SPDLOG_INFO("ciphertexts.size()={}", ciphertexts.size());
     SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
     auto ecc_cryptor = CreateEccCryptor(curve);
     // std::unordered_map<std::string, std::string> id_data;
@@ -426,16 +439,19 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       // TODO: avoid mem copy
       const auto& masked_points = ecc_cryptor->EccMask(peer_points);
       for (uint32_t i = 0; i != peer_points.size(); ++i) {
-        const auto masked =
-            ecc_cryptor->SerializeEcPoint(masked_points[i]);
+
+        const auto masked = ecc_cryptor->SerializeEcPoint(masked_points[i]);
         // In the final comparison, we only send & compare `kFinalCompareBytes`
         // number of bytes.
         std::string cipher(
             masked.data<char>() + masked.size() - mask_size,
             mask_size);
         dual_masked_peers.emplace_back(std::move(cipher));
-        random_datas.emplace_back(random_data_uints[i]);
-        dual_masked_peers_data.emplace_back(peer_items_data[i]);
+          if (peer_size!=0)
+          {
+          random_datas.emplace_back(random_data_uints[i]);
+          dual_masked_peers_data.emplace_back(peer_items_data[i]);
+          }
       }
     }
 
@@ -467,13 +483,18 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       for (size_t j = 0; j < dual_masked_peers.size(); j++) {
         peers_index_map[dual_masked_peers[j]] = j;
       }
+
       // O(n)时间复杂度查找匹配项，n为intersect_mask_id大小
       for (const auto& mask_id : intersect_mask_id) {
         auto it = peers_index_map.find(mask_id);
         if (it != peers_index_map.end()) {
+          if (peer_size!=0)
+          {
           intersect_random_self.push_back(random_datas[it->second]);
+          }
         }
       }
+
     }else{
       SPDLOG_INFO("Rank 0: Starting intersection computation");
       // 接收Y^A^B，Enc(data)-r
@@ -514,14 +535,19 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
         if (self_set.find(peer_item) != self_set.end()) {
           // 找到交集元素，直接收集所有相关数据
           intersect_mask_id.push_back(peer_item);
+          if (peer_size!=0)
+          {
           intersect_random_self.push_back(random_datas[index]);
           intersect_enc_data_mask_peer.push_back(dual_masked_peers_data[index]);
+          }
           
           // 获取对应的self数据
           auto it = self_index_map.find(peer_item);
           if (it != self_index_map.end()) {
+            if (each_raw_data_size!=0)          {
             intersect_enc_data_mask_self.push_back(self_enc_data_mask[it->second]);
           }
+        }
         }
       }
       // intersect_enc_data_mask_self 解密
@@ -548,7 +574,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
           intersect_data_MTint[i].push_back(he_->Decrypt(ciphertext));
         }
       }
-      std::vector<std::vector<int64_t>>intersect_data_self = UnpackDataFromMPInt(intersect_data_MTint, data[0].size());
+
+      std::vector<std::vector<int64_t>>intersect_data_self = UnpackDataFromMPInt(intersect_data_MTint,each_raw_data_size);
       std::vector<std::vector<int64_t>>result(intersect_data_self.size());
 
       // 保留intersect_random_self中每个向量的前peer_size个元素
@@ -558,23 +585,37 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
         }
       }
 
+      SPDLOG_INFO("Rank {}: PSI completed with {} intersection items, intersect_random_self {}", link_ctx->Rank(), result.size(), intersect_random_self.size());
 
       if (link_ctx->Rank() == 0)
       {
         for (size_t i = 0; i < intersect_data_self.size(); i++)
         {
-          result[i] = intersect_data_self[i];
-          result[i].insert(result[i].end(), intersect_random_self[i].begin(), intersect_random_self[i].end());
+          if (intersect_data_self.size()!=0)
+          {
+            result[i] = intersect_data_self[i];
+          }
+          if (intersect_random_self.size()!=0)
+          {
+            result[i].insert(result[i].end(), intersect_random_self[i].begin(), intersect_random_self[i].end());
+          }
+          
         }
       }else{
         for (size_t i = 0; i < intersect_data_self.size(); i++)
         {
-          result[i] = intersect_random_self[i];
-          result[i].insert(result[i].end(), intersect_data_self[i].begin(), intersect_data_self[i].end());
+          if (intersect_random_self.size()!=0)
+          {
+            result[i] = intersect_random_self[i];
+          }
+          if (intersect_random_self.size()!=0)
+          {
+            result[i].insert(result[i].end(), intersect_random_self[i].begin(), intersect_random_self[i].end());
+          }
         }
       }
 
-      SPDLOG_INFO("Rank {}: PSI completed with {} intersection items, result[0].size: {}", link_ctx->Rank(), result.size(), result[0].size());
+      SPDLOG_INFO("Rank {}: PSI completed with {} intersection items", link_ctx->Rank(), result.size());
       return result;
 }
 }  // namespace psi::ecdh
