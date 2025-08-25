@@ -40,10 +40,6 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve);
 
-// 数据打包函数：将原始数据打包成MPInt向量
-std::vector<std::vector<yacl::math::MPInt>> PackDataToMPInt(
-    const std::vector<std::vector<int64_t>>& data, 
-    int data_size_each_ciphertext = 16);
 
 // 数据解包函数：将MPInt向量解包回原始数据
 std::vector<std::vector<int64_t>> UnpackDataFromMPInt(
@@ -54,5 +50,5 @@ std::vector<std::vector<int64_t>> UnpackDataFromMPInt(
 // 字符串分割函数
 std::vector<std::string> SplitString(const std::string& str, const std::string& delimiter);
 
-
+void Padding(std::vector<std::string>& data, size_t size); 
 }  // namespace psi::ecdh

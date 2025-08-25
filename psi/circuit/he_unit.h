@@ -15,10 +15,12 @@
 #pragma once
 
 #include "heu/library/algorithms/paillier_zahlen/paillier.h"
+#include <cstddef>
 #include <memory>
 #include <vector>
 #include <algorithm>
 
+#include "spdlog/spdlog.h"
 namespace heu::lib::algorithms::paillier_z {
 
 /**
@@ -31,7 +33,7 @@ class PaillierHE {
    * 构造函数，生成指定位数的密钥对
    * @param key_size 密钥位数，默认2048位
    */
-  explicit PaillierHE(int key_size = 2048);
+  explicit PaillierHE(size_t key_size = 2048);
 
   /**
    * 使用已有的公钥和私钥构造
@@ -67,6 +69,22 @@ class PaillierHE {
    * @return 明文
    */
   MPInt Decrypt(const Ciphertext& ciphertext);
+
+  /**
+   * 加密明文
+   * @param plaintext 明文
+   * @return 密文
+   */
+  size_t Pack_Encrypt(const std::vector<std::vector<int64_t>>& data, std::vector<std::string>& ciphertexts); 
+
+
+  // /**
+  //  * 解密密文
+  //  * @param ciphertext 密文
+  //  * @return 明文
+  //  */
+  // MPInt Decrypt(const Ciphertext& ciphertext);
+
 
   /**
    * 同态加法：密文 + 密文
@@ -121,6 +139,7 @@ class PaillierHE {
  private:
   PublicKey pk_;                                    // 公钥
   SecretKey sk_;                                    // 私钥
+  size_t key_size_;
   bool has_secret_key_;                             // 是否拥有私钥
   std::shared_ptr<Encryptor> encryptor_;            // 加密器
   std::shared_ptr<Evaluator> evaluator_;            // 同态运算器
@@ -145,5 +164,10 @@ MPInt pack_int(const std::vector<int64_t>& packed, int64_t num_in_one_pack=16, i
  * @return 解包后的int64_t值向量
  */
 std::vector<int64_t> unpack_int(const MPInt& pack_data, int64_t num_in_one_pack=16, int64_t block_size = 64);
+
+
+std::vector<std::vector<yacl::math::MPInt>> PackDataToMPInt(
+    const std::vector<std::vector<int64_t>>& data, 
+    int data_size_each_ciphertext); 
 
 }  // namespace heu::lib::algorithms::paillier_z

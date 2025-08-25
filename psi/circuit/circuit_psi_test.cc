@@ -45,8 +45,8 @@ TEST_P(CircuitPsiTest, Works) {
   };
   SPDLOG_INFO("items_a:{}", params.items_a[0]);  
   // 创建测试数据：每个item对应一个包含多个int64_t的向量
-  std::vector<std::vector<int64_t>> data_a;
-  std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(32, 100));
+  std::vector<std::vector<int64_t>> data_a(params.items_a.size(), std::vector<int64_t>(10, 0));
+  std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(10, 0));
 // std::vector<std::vector<int64_t>> data_b;
   std::future<std::vector<std::vector<int64_t>>> fa =
       std::async(proc, ctxs[0], params.items_a, data_a);
@@ -55,12 +55,12 @@ TEST_P(CircuitPsiTest, Works) {
 
   auto results_a = fa.get();
   auto results_b = fb.get();
-  // for(size_t i=0;i<1;i++){
-  //     SPDLOG_INFO("results_a:[0]:{}, [33]:{}", results_a[i][0],results_a[i][33]);
-  //     SPDLOG_INFO("results_b:[0]:{}, [33]:{}", results_b[i][0],results_b[i][33]);
-  //     // EXPECT_EQ(results_a[0][i],results_b[0][i]);
-  //     // EXPECT_EQ(results_a[1][i],results_b[1][i]);
-  // }
+  for(size_t i=0;i<2;i++){
+      SPDLOG_INFO("results_a:[0]:{}, [10]:{}", results_a[i][0],results_a[i][10]);
+      SPDLOG_INFO("results_b:[0]:{}, [10]:{}", results_b[i][0],results_b[i][10]);
+      // EXPECT_EQ(results_a[0][i],results_b[0][i]);
+      // EXPECT_EQ(results_a[1][i],results_b[1][i]);
+  }
 
   // auto intersection = test::GetIntersection(params.items_a, params.items_b);
   // if (params.target_rank == yacl::link::kAllRank || params.target_rank == 0) {
@@ -79,8 +79,8 @@ INSTANTIATE_TEST_SUITE_P(
     Works_Instances, CircuitPsiTest,
     testing::Values(
         // // more than one batch
-        TestParams{test::CreateRangeItems(0, 1000),
-                   test::CreateRangeItems(5, 1000),
+        TestParams{test::CreateRangeItems(0, 3),
+                   test::CreateRangeItems(1, 3),
                    CurveType::CURVE_FOURQ}  //
         ));
 

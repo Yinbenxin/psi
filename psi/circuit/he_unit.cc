@@ -19,9 +19,10 @@
 
 namespace heu::lib::algorithms::paillier_z {
 
-PaillierHE::PaillierHE(int key_size) : has_secret_key_(true) {
+PaillierHE::PaillierHE(size_t key_size) : has_secret_key_(true) {
   // 生成密钥对
   KeyGenerator::Generate(key_size, &sk_, &pk_);
+  key_size_ = key_size;
   InitializeComponents();
 }
 
@@ -62,6 +63,38 @@ MPInt PaillierHE::Decrypt(const Ciphertext& ciphertext) {
   decryptor_->Decrypt(ciphertext, &plaintext);
   return plaintext;
 }
+
+size_t PaillierHE::Pack_Encrypt(const std::vector<std::vector<int64_t>>& data, std::vector<std::string>&ciphertexts){
+      // 使用新的打包函数
+    size_t data_size_each_ciphertext = key_size_/128;  // 每个密文容纳16个明文
+    size_t self_raw_size = 0;
+    if (data.size() > 0)
+    {
+      SPDLOG_INFO("data[0].size()={}", data[0].size());
+      self_raw_size = data[0].size();
+    }
+    size_t ciphertext_size = (self_raw_size + data_size_each_ciphertext - 1) / data_size_each_ciphertext; // 向上取整
+    std::vector<std::vector<yacl::math::MPInt>> packed_data = PackDataToMPInt(data, data_size_each_ciphertext);
+    SPDLOG_INFO("packed_data.size()={}", packed_data.size());
+    ciphertexts = std::vector<std::string>(data.size(), "");
+    size_t max_size_ciphertexts = 0;
+    for (size_t i = 0; i < data.size(); i++) {
+      for (size_t j = 0; j < ciphertext_size; j++) {
+        // 加密
+        auto ciphertext = encryptor_->Encrypt(packed_data[i][j]);
+        auto ciphertext_str = ciphertext.ToString();
+        ciphertexts[i]=ciphertexts[i] +"|"+ ciphertext_str ;
+      }
+      ciphertexts[i].erase(0, 1);
+      
+        if (ciphertexts[i].size() > max_size_ciphertexts) {
+          max_size_ciphertexts = ciphertexts[i].size();
+        }
+    }
+    SPDLOG_INFO("{} max_size_ciphertexts={}, ciphertexts.size(){}",  max_size_ciphertexts, ciphertexts.size());
+    return max_size_ciphertexts;
+}
+
 
 Ciphertext PaillierHE::Add(const Ciphertext& ct1, const Ciphertext& ct2) {
   if (!evaluator_) {
@@ -154,5 +187,44 @@ std::vector<int64_t> unpack_int(const MPInt& pack_data, int64_t num_in_one_pack,
     std::reverse(unpacked.begin(), unpacked.end());
     return unpacked;
 }
+
+// 数据打包函数：将原始数据打包成MPInt向量
+std::vector<std::vector<yacl::math::MPInt>> PackDataToMPInt(
+    const std::vector<std::vector<int64_t>>& data, 
+    int data_size_each_ciphertext) {
+    if (data.empty()) {
+        return {};
+    }
+    auto each_raw_data_size = data[0].size();
+    auto ciphertext_size = (each_raw_data_size + data_size_each_ciphertext - 1) / data_size_each_ciphertext; // 向上取整
+    std::vector<std::vector<yacl::math::MPInt>> packed_data(data.size());
+    
+    for (size_t i = 0; i < data.size(); i++) {
+        for (size_t j = 0; j < ciphertext_size; j++) {
+            // 准备要打包的数据向量
+            std::vector<int64_t> data_to_pack;
+            size_t start_idx = j * data_size_each_ciphertext;
+            size_t end_idx = std::min(start_idx + data_size_each_ciphertext, data[i].size());
+            
+            // 收集data_size_each_ciphertext个元素
+            for (size_t k = start_idx; k < end_idx; k++) {
+                data_to_pack.push_back(static_cast<int64_t>(data[i][k]));
+            }
+            
+            // 如果不足data_size_each_ciphertext个元素，用0填充
+            while (data_to_pack.size() < static_cast<size_t>(data_size_each_ciphertext)) {
+                data_to_pack.push_back(0);
+            }
+            
+            // 打包并添加到结果中
+            yacl::math::MPInt packed = heu::lib::algorithms::paillier_z::pack_int(data_to_pack, data_size_each_ciphertext);
+            packed_data[i].emplace_back(packed);
+        }
+    }
+    
+    return packed_data;
+}
+
+
 
 }  // namespace heu::lib::algorithms::paillier_z
