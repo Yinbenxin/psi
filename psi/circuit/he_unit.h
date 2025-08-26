@@ -136,6 +136,14 @@ class PaillierHE {
    */
   bool HasSecretKey() const { return has_secret_key_; }
 
+  /**
+   * 设置评估器
+   * @param evaluator 评估器
+   */
+  void SetEvaluator(std::shared_ptr<Evaluator> evaluator) {
+    evaluator_ = std::move(evaluator);
+  }
+
  private:
   PublicKey pk_;                                    // 公钥
   SecretKey sk_;                                    // 私钥

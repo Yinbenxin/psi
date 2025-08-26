@@ -35,13 +35,10 @@
 
 #include "psi/cryptor/cryptor_selector.h"
 #include "psi/utils/batch_provider_impl.h"
-#include "psi/circuit/he_unit.h"
+
 #include "psi/utils/serialize.h"
 
 namespace psi::circuit {
-
-size_t mask_size = kFinalCompareBytes;
-size_t secure_size = 2048;
 
 template <typename T>
 PsiDataBatch BatchData(
@@ -179,7 +176,7 @@ std::vector<std::vector<int64_t>> UnpackDataFromMPInt(
         
         for (size_t j = 0; j < packed_data[i].size(); j++) {
             // 解包MPInt为int64_t向量
-            std::vector<int64_t> unpacked_chunk = heu::lib::algorithms::paillier_z::unpack_int(
+            std::vector<int64_t> unpacked_chunk = paillier::unpack_int(
                 packed_data[i][j], data_size_each_ciphertext);
             
             // 转换为int64_t并添加到结果中
@@ -208,14 +205,11 @@ std::vector<int64_t> gen_random_data(size_t min, size_t max, size_t len) {
     }
     return random_data;
 }
-std::vector<std::vector<int64_t>> ciphertext_random(const yacl::Buffer& pk_buf, std::vector<std::string>& ciphertext_str) {
+std::vector<std::vector<int64_t>> ciphertext_random(const std::shared_ptr<paillier::PaillierHE>& HE, std::vector<std::string>& ciphertext_str) {
     // 1.密文拆分
     // 2.密文+随机值
     // 3.密文合并
     // 4.返回密文和随之值
-    heu::lib::algorithms::paillier_z::PublicKey pk_peer;
-    pk_peer.Deserialize(pk_buf);
-    auto  evaluator_peer = std::make_shared<heu::lib::algorithms::paillier_z::Evaluator>(pk_peer);
     size_t max_size_ciphertexts = 0;
     if (ciphertext_str.size()>0)
     {
@@ -234,10 +228,10 @@ std::vector<std::vector<int64_t>> ciphertext_random(const yacl::Buffer& pk_buf, 
           random_data_uints[i].insert(random_data_uints[i].end(), 
                            random_data_uint.begin(), 
                            random_data_uint.end());
-          auto random_data_MTint = heu::lib::algorithms::paillier_z::pack_int(random_data_uint, 16);
+          auto random_data_MTint = paillier::pack_int(random_data_uint, 16);
           yacl::math::MPInt data_item(data_vec[j]);
-          heu::lib::algorithms::paillier_z::Ciphertext ciphertext_MTint(data_item);
-          auto ciphertext_random_MTint =  evaluator_peer->Sub(ciphertext_MTint, random_data_MTint);
+          paillier::Ciphertext ciphertext_MTint(data_item);
+          auto ciphertext_random_MTint =  HE->Add(ciphertext_MTint, random_data_MTint);
           ciphertexts[i]=ciphertexts[i] +"|"+ ciphertext_random_MTint.ToString() ;
         }
         ciphertexts[i].erase(0, 1);
@@ -278,6 +272,20 @@ void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string
     }
 }
 
+
+std::shared_ptr<paillier::PaillierHE> InitializeHE(const std::shared_ptr<yacl::link::Context>& link_ctx){
+    std::shared_ptr<paillier::PaillierHE> HE = std::make_unique<paillier::PaillierHE>(kSecureSize);
+    auto pk = HE->GetPublicKey();
+    auto pk_buf = pk.Serialize();
+    link_ctx->SendAsync(link_ctx->NextRank(), pk_buf, "exchange pk");
+    auto recv_pk_buf = link_ctx->Recv(link_ctx->NextRank(), "exchange pk");
+    paillier::PublicKey pk_peer;
+    pk_peer.Deserialize(recv_pk_buf);
+    auto  evaluator_peer = std::make_shared<paillier::Evaluator>(pk_peer);
+    HE->SetEvaluator(evaluator_peer);
+    return HE;
+}
+
 std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve) {
@@ -293,23 +301,19 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     }
 
     auto peer_raw_size = ExchangeSetSize(link_ctx, self_raw_size);
-    if (peer_raw_size == self_raw_size && self_raw_size==0)
-    {
-      return {};
-    }
     SPDLOG_INFO("self_raw_size={}, peer_raw_size={}", self_raw_size, peer_raw_size);
+    if (peer_raw_size == self_raw_size && self_raw_size==0) return {};
+
     // 数据验证：检查id和data向量长度是否一致
     if (id.size() != data.size()) {
         SPDLOG_ERROR("rank {} Input validation failed: id.size()={}, data.size()={}",link_ctx->Rank(), id.size(), data.size());
     }
     SPDLOG_INFO("Padding and Encrypt Data");
-    std::shared_ptr<heu::lib::algorithms::paillier_z::PaillierHE> he_ = std::make_unique<heu::lib::algorithms::paillier_z::PaillierHE>(secure_size);
-    auto pk = he_->GetPublicKey();
-    auto pk_buf = pk.Serialize();
-    link_ctx->SendAsync(link_ctx->NextRank(), pk_buf, "exchange pk");
-    auto recv_pk_buf = link_ctx->Recv(link_ctx->NextRank(), "exchange pk");
+
+    auto HE = InitializeHE(link_ctx);
+
     std::vector<std::string> ciphertexts;
-    size_t max_size_ciphertexts = he_->Pack_Encrypt(data, ciphertexts); 
+    size_t max_size_ciphertexts = HE->Pack_Encrypt(data, ciphertexts); 
     Padding(ciphertexts, max_size_ciphertexts);
     SPDLOG_INFO("Encrypt Finish, ciphertexts.size()={}", ciphertexts.size());
     
@@ -354,7 +358,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     std::vector<std::string> dual_masked_peers_data;
     // 生成2^60到2^61范围内的随机整数字符串
     SPDLOG_INFO("Generate random data");
-    auto random_data_uints = ciphertext_random(recv_pk_buf, peer_enc_data);
+    auto random_data_uints = ciphertext_random(HE, peer_enc_data);
     SPDLOG_INFO("Generate random data finish");
     std::vector<std::vector<int64_t>> random_datas;
     
@@ -367,8 +371,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
         // In the final comparison, we only send & compare `kFinalCompareBytes`
         // number of bytes.
         std::string cipher(
-            masked.data<char>() + masked.size() - mask_size,
-            mask_size);
+            masked.data<char>() + masked.size() - kMaskSize,
+            kMaskSize);
         dual_masked_peers.emplace_back(std::move(cipher));
           if (peer_raw_size!=0)
           {
@@ -495,8 +499,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
         {
           // 解密每个数据项
           yacl::math::MPInt data_item(data_vec[j]);
-          heu::lib::algorithms::paillier_z::Ciphertext ciphertext(data_item);
-          intersect_data_MTint[i].push_back(he_->Decrypt(ciphertext));
+          paillier::Ciphertext ciphertext(data_item);
+          intersect_data_MTint[i].push_back(HE->Decrypt(ciphertext));
         }
       }
       SPDLOG_INFO("Rank 0: Decrypting {} intersection data items finish", intersect_enc_data_mask_self.size());
@@ -543,4 +547,4 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       SPDLOG_INFO("Rank {}: PSI completed with {} intersection items", link_ctx->Rank(), result.size());
       return result;
 }
-}  // namespace psi::ecdh
+}  // namespace psi::circuit

@@ -31,7 +31,7 @@
 #include "psi/utils/communication.h"
 #include "psi/utils/ec_point_store.h"
 #include "psi/utils/recovery.h"
-
+#include "psi/circuit/he_unit.h"
 #include "psi/utils/serializable.pb.h"
 
 /*
@@ -85,6 +85,13 @@ https://eprint.iacr.org/2020/599.pdf
 */
 
 namespace psi::circuit {
+namespace {
+// 用于最终比较的掩码大小
+constexpr size_t kMaskSize = kFinalCompareBytes;
+// 同态加密的安全参数大小
+constexpr size_t kSecureSize = 2048;
+namespace paillier = heu::lib::algorithms::paillier_z;
+}  
 
 std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
@@ -104,4 +111,5 @@ void Padding(std::vector<std::string>& data, size_t size);
 void shuffle_items(std::vector<std::string>& peer_items, std::vector<std::string>& peer_enc_data);
 std::vector<std::vector<int64_t>> ciphertext_random(const yacl::Buffer& pk_buf, std::vector<std::string>& ciphertext_str); 
 std::vector<int64_t> gen_random_data(size_t min, size_t max, size_t len); 
+std::shared_ptr<paillier::PaillierHE> InitializeHE(const std::shared_ptr<yacl::link::Context>& link_ctx);
 }  // namespace psi::ecdh
