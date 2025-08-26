@@ -282,6 +282,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve) {
     SPDLOG_INFO("rank {} Starting RunCircuitPsi with: id.size()={}, data.size()={}",link_ctx->Rank(), id.size(), data.size());
+    SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
 
     size_t self_raw_size = 0;
     
@@ -301,6 +302,7 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     if (id.size() != data.size()) {
         SPDLOG_ERROR("rank {} Input validation failed: id.size()={}, data.size()={}",link_ctx->Rank(), id.size(), data.size());
     }
+    SPDLOG_INFO("Padding and Encrypt Data");
     std::shared_ptr<heu::lib::algorithms::paillier_z::PaillierHE> he_ = std::make_unique<heu::lib::algorithms::paillier_z::PaillierHE>(secure_size);
     auto pk = he_->GetPublicKey();
     auto pk_buf = pk.Serialize();
@@ -309,37 +311,32 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
     std::vector<std::string> ciphertexts;
     size_t max_size_ciphertexts = he_->Pack_Encrypt(data, ciphertexts); 
     Padding(ciphertexts, max_size_ciphertexts);
-    SPDLOG_INFO("ciphertexts.size()={}", ciphertexts.size());
-    SPDLOG_INFO("Creating ECC cryptor with curve type: {}", static_cast<int>(curve));
+    SPDLOG_INFO("Encrypt Finish, ciphertexts.size()={}", ciphertexts.size());
+    
+    SPDLOG_INFO("ECDHPSI:X^A, id_size={}",id.size());
     auto ecc_cryptor = CreateEccCryptor(curve);
     std::vector<std::string> masked_items;
     std::vector<std::string> hashed_masked_items;
-    SPDLOG_INFO("Hashing and masking {} input items", id.size());
     auto hashed_points = ecc_cryptor->HashInputs(id);
     auto masked_points = ecc_cryptor->EccMask(hashed_points);
     masked_items = ecc_cryptor->SerializeEcPoints(masked_points);
-    SPDLOG_INFO("Generated {} masked items", masked_items.size());  
-    auto tag1 = fmt::format("ECDHPSI:X^A");
+    SPDLOG_INFO("X^A Finish Generated {} masked items", masked_items.size());  
 
-    SPDLOG_INFO("Sending {} masked items to peer", masked_items.size());
+    auto tag1 = fmt::format("ECDHPSI:X^A");
+    auto tag2 = fmt::format("ECDHPSI:encrypted_data");
+
+    SPDLOG_INFO("Sending {} masked items and {} encrypted data to peer", masked_items.size(), ciphertexts.size());
     SendBatchImpl(masked_items, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                   "enc", 0, tag1);
-    SPDLOG_INFO("Encrypting {} data items", data.size());
-    auto tag2 = fmt::format("ECDHPSI:encrypted_data");
-    // auto encrypted_data  = data;
-    SPDLOG_INFO("Sending {} encrypted data items to peer", ciphertexts.size());
     SendBatchImpl(ciphertexts, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                   "enc", 0, tag2);
-
 
     // 接收Y^A
     std::vector<std::string> peer_items;
     std::vector<std::string> peer_enc_data;
-    auto tag3 = fmt::format("ECDHPSI:Recv Y^A");
-    auto tag4 = fmt::format("ECDHPSI:Recv Enc(data)");
     SPDLOG_INFO("Receiving peer masked items and encrypted data");
-    RecvBatchImpl(link_ctx,0, tag3, &peer_items);
-    RecvBatchImpl(link_ctx,0, tag4, &peer_enc_data);
+    RecvBatchImpl(link_ctx,0, tag1, &peer_items);
+    RecvBatchImpl(link_ctx,0, tag2, &peer_enc_data);
     SPDLOG_INFO("Received {} peer items and {} peer data items", peer_items.size(), peer_enc_data.size());
     
 
@@ -350,15 +347,15 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       shuffle_items(peer_items, peer_enc_data);
     }
     
-    
-    auto peer_points = ecc_cryptor->DeserializeEcPoints(peer_items);
     // Compute (y^b)^a, Enc(data)-random_data.
+    SPDLOG_INFO("Compute (y^b)^a  And  Enc(data)-random_data");
+    auto peer_points = ecc_cryptor->DeserializeEcPoints(peer_items);
     std::vector<std::string> dual_masked_peers;
     std::vector<std::string> dual_masked_peers_data;
     // 生成2^60到2^61范围内的随机整数字符串
-    SPDLOG_INFO("Compute (y^b)^a  And  Enc(data)-random_data");
+    SPDLOG_INFO("Generate random data");
     auto random_data_uints = ciphertext_random(recv_pk_buf, peer_enc_data);
-    SPDLOG_INFO("random_data_uints.size()={}", random_data_uints[0][0]);
+    SPDLOG_INFO("Generate random data finish");
     std::vector<std::vector<int64_t>> random_datas;
     
     if (!peer_items.empty()) {
@@ -484,6 +481,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
       SendBatchImpl(intersect_enc_data_mask_peer, std::unordered_map<uint32_t, uint32_t>(),  link_ctx,
                     "enc", 0, tag2+"2");
     }
+
+      SPDLOG_INFO("Rank 0: Decrypting {} intersection data items", intersect_enc_data_mask_self.size());
       std::vector<std::vector<yacl::math::MPInt>> intersect_data_MTint(intersect_enc_data_mask_self.size());
       for (size_t i = 0; i < intersect_enc_data_mask_self.size(); i++)
       {
@@ -500,10 +499,8 @@ std::vector<std::vector<int64_t>> RunCircuitPsi(
           intersect_data_MTint[i].push_back(he_->Decrypt(ciphertext));
         }
       }
-
+      SPDLOG_INFO("Rank 0: Decrypting {} intersection data items finish", intersect_enc_data_mask_self.size());
       std::vector<std::vector<int64_t>>intersect_data_self = UnpackDataFromMPInt(intersect_data_MTint,self_raw_size);
-          SPDLOG_INFO("intersect_data_MTin={}", intersect_data_self[0][0]);
-
       std::vector<std::vector<int64_t>>result(intersect_data_self.size());
 
       // 保留intersect_random_self中每个向量的前peer_raw_size个元素

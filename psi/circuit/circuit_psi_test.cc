@@ -45,8 +45,8 @@ TEST_P(CircuitPsiTest, Works) {
   };
   SPDLOG_INFO("items_a:{}", params.items_a[0]);  
   // 创建测试数据：每个item对应一个包含多个int64_t的向量
-  std::vector<std::vector<int64_t>> data_a(params.items_a.size(), std::vector<int64_t>(10, 0));
-  std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(10, 0));
+  std::vector<std::vector<int64_t>> data_a(params.items_a.size(), std::vector<int64_t>(10, 1));
+  std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(10, 10));
 // std::vector<std::vector<int64_t>> data_b;
   std::future<std::vector<std::vector<int64_t>>> fa =
       std::async(proc, ctxs[0], params.items_a, data_a);
@@ -79,8 +79,8 @@ INSTANTIATE_TEST_SUITE_P(
     Works_Instances, CircuitPsiTest,
     testing::Values(
         // // more than one batch
-        TestParams{test::CreateRangeItems(0, 3),
-                   test::CreateRangeItems(1, 3),
+        TestParams{test::CreateRangeItems(0, 1000),
+                   test::CreateRangeItems(1, 1000),
                    CurveType::CURVE_FOURQ}  //
         ));
 
