@@ -99,6 +99,7 @@
         "iterator": "cpp",
         "ranges": "cpp",
         "type_traits": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "__config": "cpp"
     }
 }

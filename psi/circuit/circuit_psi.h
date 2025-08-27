@@ -93,6 +93,46 @@ constexpr size_t kSecureSize = 2048;
 namespace paillier = heu::lib::algorithms::paillier_z;
 }  
 
+void BlindIDandEncData(
+    const std::shared_ptr<yacl::link::Context>& link_ctx,
+    const std::vector<std::string>& id,
+    const std::vector<std::vector<int64_t>>& data,
+    const std::shared_ptr<paillier::PaillierHE>& HE,
+    const std::shared_ptr<IEccCryptor>& ecc_cryptor,
+    std::vector<std::string>& ciphertexts,
+    std::vector<std::string>& masked_items,
+    std::vector<std::string>& peer_items,
+    std::vector<std::string>& peer_enc_data);
+
+void DaulBlindIDandMaskData(
+    const std::shared_ptr<yacl::link::Context>& link_ctx,
+    const std::shared_ptr<paillier::PaillierHE>& HE,
+    const std::shared_ptr<IEccCryptor>& ecc_cryptor,
+    std::vector<std::string>& peer_items,
+    std::vector<std::string>& peer_enc_data,
+    size_t peer_raw_size,
+    std::vector<std::string>& dual_masked_peers,
+    std::vector<std::string>& dual_masked_peers_data,
+    std::vector<std::vector<int64_t>>& random_datas);
+
+void ComputeIntersection(
+    const std::shared_ptr<yacl::link::Context>& link_ctx,
+    size_t self_raw_size,
+    size_t peer_raw_size,
+    const std::vector<std::string>& dual_masked_peers,
+    const std::vector<std::string>& dual_masked_peers_data,
+    const std::vector<std::vector<int64_t>>& random_datas,
+    std::vector<std::string>& intersect_enc_data_mask_self,
+    std::vector<std::vector<int64_t>>& intersect_random_self);
+
+std::vector<std::vector<int64_t>> DecryptAndGetShare(
+    const std::shared_ptr<yacl::link::Context>& link_ctx,
+    const std::shared_ptr<paillier::PaillierHE>& HE,
+    const std::vector<std::string>& intersect_enc_data_mask_self,
+    std::vector<std::vector<int64_t>>& intersect_random_self,
+    size_t self_raw_size,
+    size_t peer_raw_size);
+
 std::vector<std::vector<int64_t>> RunCircuitPsi(
     const std::shared_ptr<yacl::link::Context>& link_ctx,
     const std::vector<std::string>& id, const std::vector<std::vector<int64_t>>& data, CurveType curve);
