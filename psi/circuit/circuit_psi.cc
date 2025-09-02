@@ -518,6 +518,10 @@ std::vector<std::vector<int64_t>> DecryptAndGetShare(
         if (random_vec.size() > peer_raw_size) {
             random_vec.resize(peer_raw_size);
         }
+        // 对random_vec中的每个元素取反
+        for (auto& x : random_vec) {
+            x = -x;
+        }
     }
 
     SPDLOG_INFO("Rank {}: PSI completed with {} intersection items, intersect_random_self {}", link_ctx->Rank(), result.size(), intersect_random_self.size());
