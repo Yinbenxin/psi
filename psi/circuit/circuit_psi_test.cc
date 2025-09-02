@@ -16,6 +16,7 @@
 
 #include <future>
 #include <iostream>
+#include <chrono>
 
 #include "gtest/gtest.h"
 #include "spdlog/spdlog.h"
@@ -48,6 +49,7 @@ TEST_P(CircuitPsiTest, Works) {
   std::vector<std::vector<int64_t>> data_a(params.items_a.size(), std::vector<int64_t>(10, 1));
   std::vector<std::vector<int64_t>> data_b(params.items_b.size(), std::vector<int64_t>(10, 10));
 // std::vector<std::vector<int64_t>> data_b;
+  auto t_begin = std::chrono::steady_clock::now();
   std::future<std::vector<std::vector<int64_t>>> fa =
       std::async(proc, ctxs[0], params.items_a, data_a);
   std::future<std::vector<std::vector<int64_t>>> fb =
@@ -55,6 +57,9 @@ TEST_P(CircuitPsiTest, Works) {
 
   auto results_a = fa.get();
   auto results_b = fb.get();
+  auto t_end = std::chrono::steady_clock::now();
+  auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_begin).count();
+  SPDLOG_INFO("Circuit PSI total time: {} ms", elapsed_ms);
   for(size_t i=0;i<2;i++){
       SPDLOG_INFO("results_a:[0]:{}, [10]:{}", results_a[i][0],results_a[i][10]);
       SPDLOG_INFO("results_b:[0]:{}, [10]:{}", results_b[i][0],results_b[i][10]);
