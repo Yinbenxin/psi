@@ -231,7 +231,7 @@ std::vector<std::vector<int64_t>> ciphertext_random(const std::shared_ptr<pailli
           auto random_data_MTint = paillier::pack_int(random_data_uint, 16);
           yacl::math::MPInt data_item(data_vec[j]);
           paillier::Ciphertext ciphertext_MTint(data_item);
-          auto ciphertext_random_MTint =  HE->Add(ciphertext_MTint, random_data_MTint);
+          auto ciphertext_random_MTint =  HE->Sub(ciphertext_MTint, random_data_MTint);
           ciphertexts[i]=ciphertexts[i] +"|"+ ciphertext_random_MTint.ToString() ;
         }
         ciphertexts[i].erase(0, 1);
